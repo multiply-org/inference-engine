@@ -10,6 +10,7 @@
 
     <version>0.1-SNAPSHOT</version>
     <modules>
+        <!--<module>dummy_inference_engine</module>-->
         <module>dummy-python</module>
         <module>abstract_inference_engine</module>
     </modules>
