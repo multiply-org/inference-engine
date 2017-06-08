@@ -1,0 +1,21 @@
+about:
+  summary: "MULTIPLY inference engine package"
+  home: https://github.com/multiply-org/inference-engine
+
+package:
+  name: multiply_inference_engine
+  version: "0.1"
+
+source:
+  git_url: "https://github.com/multiply-org/inference-engine.git"
+
+build:
+  number: 0
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - python

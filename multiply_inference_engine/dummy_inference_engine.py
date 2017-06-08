@@ -1,6 +1,6 @@
 import snappy
 
-class dummy_inference_engine:
+class DummyInferenceEngine:
 
     def infer(self, coarse_res_brdf_descriptor, high_res_sdr, grd_sar_data, prior, optical_forward_operator_emulator,
               sar_forward_operator_emulator):

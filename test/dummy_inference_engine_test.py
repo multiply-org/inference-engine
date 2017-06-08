@@ -4,7 +4,7 @@ import dummy_inference_engine
 class dummy_inference_engine_test(unittest.TestCase):
 
     def test_assimilate(self):
-        engine = dummy_inference_engine.dummy_inference_engine()
+        engine = dummy_inference_engine.DummyInferenceEngine()
 
         coarse_res_brdf_descriptors= []
         high_res_sdr = []
