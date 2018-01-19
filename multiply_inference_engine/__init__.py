@@ -1,1 +1,2 @@
 from .inference_engine import InferenceEngine
+from .inference_prior import InferencePrior
