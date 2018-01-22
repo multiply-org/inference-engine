@@ -15,7 +15,7 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - conda create -q -n test python=$TRAVIS_PYTHON_VERSION pytest gdal numpy typing netcdf4 scipy
+  - conda create -q -n test python=$TRAVIS_PYTHON_VERSION pytest gdal numpy typing netcdf4 python-dateutil scipy
   - source activate test
   - pip install -U codecov
   - pip install datetime
