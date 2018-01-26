@@ -13,7 +13,7 @@ LOG = logging.getLogger(__name__ + ".inference_prior")
 class InferencePrior(object):
     """A class to wrap access to priors created by the MULTIPLY prior engine to the inference engine."""
 
-    def __init__(self, prior_engine_config_file: str, global_prior_files: List[str], use_dummy: bool):
+    def __init__(self, prior_engine_config_file: str, global_prior_files: List[str], use_dummy: bool=False):
         """
         This class encapsulates the access to priors produced by the MULTIPLY Prior Engine by either encapsulating
         the whole Prior Engine or by retrieving a number of global prior files that were the output of the Prior Engine.
@@ -27,9 +27,9 @@ class InferencePrior(object):
         elif global_prior_files is not None:
             LOG.info('Using global files to access prior information')
             self._inference_prior = PriorFilesInferencePrior(global_prior_files)
-            if prior_engine_config_file is not None:
+            if prior_engine_config_file is not None and prior_engine_config_file is not '':
                 LOG.info('Passing a config file is not necessary when prior files are present')
-        elif prior_engine_config_file is not None:
+        elif prior_engine_config_file is not None and prior_engine_config_file is not '':
             self._inference_prior = PriorEngineInferencePrior(prior_engine_config_file)
         else:
             raise ValueError('Either config for prior engine or list of vrt files must be given as parameter.')
@@ -93,7 +93,6 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         This class encapsulates the access to priors produced by the MULTIPLY Prior Engine by either encapsulating
         the whole Prior Engine or by retrieving a number of global prior files that were the output of the Prior Engine.
         :param prior_engine_config_file: A YAML config file to set up the prior engine
-        :param global_prior_files: A list of files that contain information on priors. Files must named according to
         format: 'Priors_<name of parameter>_<name of another parameter>_<day of year>_global.vrt.
         """
         self._prior_engine = PriorEngine(prior_engine_config_file)
