@@ -95,11 +95,14 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         :param prior_engine_config_file: A YAML config file to set up the prior engine
         format: 'Priors_<name of parameter>_<name of another parameter>_<day of year>_global.vrt.
         """
-        self._prior_engine = PriorEngine(prior_engine_config_file)
+        self._prior_engine_config_file = prior_engine_config_file
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
                       inv_cov: bool = True) -> List[np.array]:
-        pass
+        if type(time) is datetime:
+            time = datetime.strptime(time, 'yyyy-mm-dd')
+        prior_engine = PriorEngine(datestr=time, variables=parameters, config=self._prior_engine_config_file)
+        priors = prior_engine.get_priors()
 
 
 class PriorFilesInferencePrior(_WrappingInferencePrior):
