@@ -19,6 +19,7 @@ install:
   - source activate test
   - pip install -U codecov
   - pip install datetime
+  - pip install https://github.com/multiply-org/multiply-core/zipball/master
   - pip install https://github.com/multiply-org/prior-engine/zipball/master
   - pip install https://github.com/jgomezdans/BRDF_descriptors/zipball/master
   - pip install https://github.com/multiply-org/KaFKA-InferenceEngine/zipball/master
