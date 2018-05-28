@@ -60,6 +60,7 @@ def infer(start_time: Union[str, datetime], end_time: Union[str, datetime],
     # kf.set_trajectory_uncertainty(Q)
 
     # set up the time grid. We only have two dates, as the temporal stepping is done in the orchestrator.
+    #todo add something here so that it is possible to use custom stepping (e.g., a two weeks temporal resolution)
     time_grid = [start_time, end_time]
 
     # i do not know what the ones in the bottom half mean
