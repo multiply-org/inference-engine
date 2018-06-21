@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 
 from datetime import datetime
@@ -11,13 +12,18 @@ from typing import List, Optional, Union
 __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 
 
-# class InferenceEngine(object):
-
-def infer(start_time: Union[str, datetime], end_time: Union[str, datetime],
-          dataset_urls: List[str], output_format: str, parameter_list: List[str],
-          roi: Union[str, Polygon], roi_grid: Optional[str], destination_grid: Optional[str]="EPSG:4326"):
+def infer(start_time: Union[str, datetime],
+          end_time: Union[str, datetime],
+          inference_type: str,
+          parameter_list: List[str],
+          prior_files: List[str],
+          dataset_urls: List[str],
+          state_mask: Optional[Union[str, np.array]],
+          roi: Optional[Union[str, Polygon]],
+          spatial_resolution: Optional[float],
+          roi_grid: Optional[str],
+          destination_grid: Optional[str]="EPSG:4326"):
     """
-
     :param start_time:
     :param end_time:
     :param dataset_urls:
@@ -67,4 +73,34 @@ def infer(start_time: Union[str, datetime], end_time: Union[str, datetime],
     # kf.run(time_grid=time_grid, x_forecast=x_forecast, P_forecast=None, P_forecast_inverse=P_forecast_inv,
     #        diag_str="diagnostics", approx_diagonal=True, refine_diag=True, is_robust=False, iter_obs_op=True)
 
-# def
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='MULTIPLY Inference Engine')
+    parser.add_argument('-s', "--start_time", help='The start time of the inference period',required=True)
+    parser.add_argument("-e", "--end_time", help="The end time of the inference period", required=True)
+    parser.add_argument("-i", "--inference_type",help="The type of inference. Must be either 'coarse' or 'high'.",
+                        required=True)
+    parser.add_argument("-p", "--parameter_list",help="The list of biophysical parameters that shall be derived",
+                        required=True)
+    parser.add_argument("-pf", "--prior_files", help="The prior files for the inference period", required=True)
+    parser.add_argument("-d", "--dataset_urls", help="The datasets to be used for inferring data.", required=True)
+    parser.add_argument("-sm", "--state_mask", help="A file containing a state mask to describe the output space "
+                                                    "and to mask out pixels. If not given, "
+                                                    "Either this or 'roi' and 'spatial_resolution' must be given.")
+    parser.add_argument("-roi", "--roi", help="The region of interest describing the area to be retrieved. Not "
+                                              "required if 'state_mask' is given.")
+    parser.add_argument("-res", "--spatial_resolution", help="The spatial resolution of the destination grid. "
+                                                             "Not required if 'state_mask' is given.")
+    parser.add_argument("-rg", "--roi_grid", help="A representation of the spatial reference system in which the "
+                                                  "roi is given, either as EPSG-code or as WKT representation. "
+                                                  "If not given, it is assumed that the roi is given in the "
+                                                  "destination spatial reference system.")
+    parser.add_argument("-dg", "--destination_grid", help="A representation of the spatial reference system in which "
+                                                          "the output shall be given, either as EPSG-code or as WKT "
+                                                          "representation. If not given, the output is given in the "
+                                                          "grid defined by the 'state_mask'. If no 'state_mask is "
+                                                          "given,' the output is written in WGS84 coordinates.",
+                        default='EPSG:4326')
+    args = parser.parse_args()
+    infer(args.start_time, args.end_time, args.inference_type, args.parameter_list, args.prior_files, args.dataset_urls,
+          args.state_mask, args.roi, args.spatial_resolution, args.roi_grid, args.destination_grid)
