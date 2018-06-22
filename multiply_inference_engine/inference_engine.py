@@ -80,10 +80,6 @@ def infer(start_time: Union[str, datetime],
         start_time = get_time_from_string(start_time)
     if type(end_time) is str:
         end_time = get_time_from_string(end_time)
-    print(start_time)
-    print(type(start_time))
-    print(end_time)
-    print(type(end_time))
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -152,10 +148,6 @@ def infer(start_time: Union[str, datetime],
     linear_kalman.set_trajectory_uncertainty(Q)
 
     time_grid = [start_time, end_time]
-    print(start_time)
-    print(type(start_time))
-    print(end_time)
-    print(type(end_time))
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
 
 
