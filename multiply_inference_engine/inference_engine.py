@@ -110,6 +110,7 @@ def infer(start_time: Union[str, datetime],
         roi_bounds = roi.bounds
         # reprojection = Reprojection(roi_bounds, spatial_resolution, spatial_resolution, )
 
+    print(prior_directory)
     prior_files = glob.glob(prior_directory + '/.*vrt')
     print(prior_files)
     inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=prior_reference_dataset)
@@ -187,6 +188,7 @@ if __name__ == '__main__':
                         default='EPSG:4326')
     args = parser.parse_args()
     parameter_list = args.parameter_list.split(',')
+    print(args.prior_directory)
     infer(args.start_time, args.end_time, args.inference_type, parameter_list, args.prior_directory,
           args.datasets_dir, args.previous_state, args.next_state, args.emulators_directory, args.output_directory,
           args.state_mask, args.roi, args.spatial_resolution, args.roi_grid, args.destination_grid)
