@@ -149,7 +149,9 @@ def infer(start_time: Union[str, datetime],
 
     time_grid = [start_time, end_time]
     print(start_time)
+    print(type(start_time))
     print(end_time)
+    print(type(end_time))
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
 
 
