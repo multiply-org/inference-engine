@@ -80,6 +80,10 @@ def infer(start_time: Union[str, datetime],
         start_time = get_time_from_string(start_time)
     if end_time is str:
         end_time = get_time_from_string(end_time)
+    print(start_time)
+    print(type(start_time))
+    print(end_time)
+    print(type(end_time))
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
