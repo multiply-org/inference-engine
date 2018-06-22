@@ -111,7 +111,7 @@ def infer(start_time: Union[str, datetime],
         # reprojection = Reprojection(roi_bounds, spatial_resolution, spatial_resolution, )
 
     print(prior_directory)
-    prior_files = glob.glob(prior_directory + '/.*vrt')
+    prior_files = glob.glob(prior_directory + '/*.vrt')
     print(prior_files)
     inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=prior_reference_dataset)
 
