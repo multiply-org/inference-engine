@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
-import multiply_core.reproject as reproject
+from multiply_core.util import reproject_image
 from multiply_prior_engine import PriorEngine
 from typing import List, Union
 import gdal
@@ -117,7 +117,7 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         covariance_vector = np.empty(shape=shape, dtype=np.float32)
         for i, parameter in enumerate(parameters):
             vrt_dataset = list(priors[parameter].values())[0]
-            reprojected_vrt_dataset = reproject.reproject_image(vrt_dataset, self._reference_dataset)
+            reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
             mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
             covariance_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
         processed_priors.append(mean_state_vector)
@@ -162,7 +162,7 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
             if len(indices) == 0:
                 raise UserWarning('Could not find prior file {}.'.format(requested_prior_file_name))
             vrt_dataset = gdal.Open(self._global_prior_file_paths[indices[0]])
-            reprojected_vrt_dataset = reproject.reproject_image(vrt_dataset, self._reference_dataset)
+            reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
             mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
             covariance_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
         processed_priors.append(mean_state_vector)
