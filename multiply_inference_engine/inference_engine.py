@@ -76,9 +76,9 @@ def infer(start_time: Union[str, datetime],
     """
     # we assume that time is derived for one time step; or, to be more precise, for one time period (with no
     # intermediate time steps). This time step/time period is described by start time and end time.
-    if start_time is str:
+    if type(start_time) is str:
         start_time = get_time_from_string(start_time)
-    if end_time is str:
+    if type(end_time) is str:
         end_time = get_time_from_string(end_time)
     print(start_time)
     print(type(start_time))
