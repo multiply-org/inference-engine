@@ -148,7 +148,7 @@ def infer(start_time: Union[str, datetime],
     linear_kalman.set_trajectory_uncertainty(Q)
 
     time_grid = [start_time, end_time]
-    linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op==True)
+    linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
 
 
 if __name__ == '__main__':
