@@ -138,7 +138,6 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
         for path in self._global_prior_file_paths:
             file = open(path)
             global_prior_file_name = os.path.basename(file.name)
-            print(global_prior_file_name)
             self._global_prior_file_names.append(global_prior_file_name)
         self._reference_dataset = reference_dataset
 
