@@ -122,7 +122,7 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
             mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
             matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid] ** 2
         if inv_cov:
-            matrix = 1. / matrix
+            matrix[matrix != 0] = 1. / matrix[matrix != 0]
         return mean_state_vector, block_diag(matrix)
 
 class PriorFilesInferencePrior(_WrappingInferencePrior):
@@ -169,7 +169,7 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
                 mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
                 matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]**2
         if inv_cov:
-            matrix = 1. / matrix
+            matrix[matrix != 0] = 1. / matrix[matrix != 0]
         return mean_state_vector, block_diag(matrix)
 
 
