@@ -1,12 +1,13 @@
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
-from multiply_core.util import reproject_image
+from multiply_core.util import reproject_image, block_diag
 from multiply_prior_engine import PriorEngine
 from typing import List, Union
 import gdal
 import logging
 import numpy as np
 import os
+import scipy.sparse
 
 __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 
@@ -17,7 +18,7 @@ class InferencePrior(object):
     """A class to wrap access to priors created by the MULTIPLY prior engine to the inference engine."""
 
     def __init__(self, prior_engine_config_file: str, global_prior_files: List[str], reference_dataset: gdal.Dataset,
-                 use_dummy: bool=False):
+                 use_dummy: bool = False):
         """
         This class encapsulates the access to priors produced by the MULTIPLY Prior Engine by either encapsulating
         the whole Prior Engine or by retrieving a number of global prior files that were the output of the Prior Engine.
@@ -66,7 +67,7 @@ class InferencePrior(object):
             #     self._get_prior_date(parameters, timestep)
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> List[np.array]:
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
         return self._inference_prior.process_prior(parameters, time, state_grid, inv_cov)
 
 
@@ -74,7 +75,7 @@ class _WrappingInferencePrior(metaclass=ABCMeta):
 
     @abstractmethod
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> List[np.array]:
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
         """
         This method retrieves the requested parameters for the given time and region. For each parameter, it returns
         a mean state vector and covariance matrix which might be inverse.
@@ -104,25 +105,25 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         self._reference_dataset = reference_dataset
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> List[np.array]:
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
         if type(time) is datetime:
             time = datetime.strftime(time, "%Y-%m-%d")
         prior_engine = PriorEngine(datestr=time, variables=parameters, config=self._prior_engine_config_file)
         priors = prior_engine.get_priors()
         num_pixels = state_grid.sum()
         num_params = len(parameters)
-        shape = num_pixels * num_params
-        processed_priors = []
-        mean_state_vector = np.empty(shape=shape, dtype=np.float32)
-        covariance_vector = np.empty(shape=shape, dtype=np.float32)
+        state_vector_shape = num_pixels * num_params
+        matrix_shape = (num_pixels, num_params, num_params)
+        mean_state_vector = np.empty(shape=state_vector_shape, dtype=np.float32)
+        matrix = np.empty(shape=matrix_shape, dtype=np.float32)
         for i, parameter in enumerate(parameters):
             vrt_dataset = list(priors[parameter].values())[0]
             reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
             mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
-            covariance_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
-        processed_priors.append(mean_state_vector)
-        processed_priors.append(covariance_vector)
-        return processed_priors
+            matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid] ** 2
+        if inv_cov:
+            matrix = 1. / matrix
+        return mean_state_vector, block_diag(matrix)
 
 class PriorFilesInferencePrior(_WrappingInferencePrior):
 
@@ -142,13 +143,13 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
         self._reference_dataset = reference_dataset
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> List[np.array]:
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
         num_pixels = state_grid.sum()
         num_params = len(parameters)
-        shape = num_pixels * num_params
-        processed_priors = []
-        mean_state_vector = np.empty(shape=shape, dtype=np.float32)
-        covariance_vector = np.empty(shape=shape, dtype=np.float32)
+        state_vector_shape = num_pixels * num_params
+        matrix_shape = (num_pixels, num_params, num_params)
+        mean_state_vector = np.empty(shape=state_vector_shape, dtype=np.float32)
+        matrix = np.zeros(shape=matrix_shape, dtype=np.float32)
         if type(time) is str:
             time = datetime.strptime(time, "%Y-%m-%d")
         day_of_year = time.timetuple().tm_yday
@@ -159,16 +160,17 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
             else:
                 requested_prior_file_name = 'Priors_{}_{:03d}_global.vrt'.format(parameter, day_of_year)
             indices = [j for j, global_prior_file_name in enumerate(self._global_prior_file_names)
-                if global_prior_file_name == requested_prior_file_name]
+                       if global_prior_file_name == requested_prior_file_name]
             if len(indices) == 0:
                 raise UserWarning('Could not find prior file {}.'.format(requested_prior_file_name))
-            vrt_dataset = gdal.Open(self._global_prior_file_paths[indices[0]])
-            reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
-            mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
-            covariance_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
-        processed_priors.append(mean_state_vector)
-        processed_priors.append(covariance_vector)
-        return processed_priors
+            else:
+                vrt_dataset = gdal.Open(self._global_prior_file_paths[indices[0]])
+                reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
+                mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
+                matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]**2
+        if inv_cov:
+            matrix = 1. / matrix
+        return mean_state_vector, block_diag(matrix)
 
 
 class DummyInferencePrior(_WrappingInferencePrior):
@@ -177,16 +179,11 @@ class DummyInferencePrior(_WrappingInferencePrior):
     """
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> List[np.array]:
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
         num_pixels = state_grid.sum()
         num_params = len(parameters)
         shape = num_pixels * num_params
-        processed_priors = []
+        matrix_shape = (num_pixels, num_params, num_params)
         mean_state_vector = np.empty(shape=shape, dtype=np.float32)
-        inverse_covariance_matrix = np.empty(shape=shape, dtype=np.float32)
-        processed_priors.append(mean_state_vector)
-        processed_priors.append(inverse_covariance_matrix)
-        return processed_priors
-
-
-
+        matrix = np.empty(shape=matrix_shape, dtype=np.float32)
+        return mean_state_vector, block_diag(matrix)
