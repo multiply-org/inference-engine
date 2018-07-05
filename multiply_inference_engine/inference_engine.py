@@ -136,8 +136,7 @@ def infer(start_time: Union[str, datetime],
         if os.path.exists(x_fname):
             x_forecast = np.load(x_fname)['arr_0']
     if p_forecast_inv is None or x_forecast is None:
-        # processed_prior = inference_prior.process_prior(parameter_list, start_time, mask)
-        processed_prior = inference_prior.process_prior(None)
+        processed_prior = inference_prior.process_prior(parameter_list, start_time, mask)
         if x_forecast is None:
             x_forecast = processed_prior[0]
         if p_forecast_inv is None:
