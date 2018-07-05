@@ -13,7 +13,6 @@ from datetime import datetime
 from kafka import LinearKalman
 from kafka.input_output import KafkaOutput
 from kafka.inference import create_prosail_observation_operator
-from kafka.inference.narrowbandSAIL_tools import SAILPrior
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
 from multiply_core.observations import data_validation, ObservationsFactory
 from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string
@@ -76,7 +75,7 @@ def infer(start_time: Union[str, datetime],
     :return:
     """
     # TODO use actually passed parameter list! this one is sail model specific
-    parameter_list = ['n', 'cab', 'car', 'cbrown', 'cw', 'cm', 'lai', 'ala', 'bsoil', 'psoil']
+    # parameter_list = ['n', 'cab', 'car', 'cbrown', 'cw', 'cm', 'lai', 'ala', 'bsoil', 'psoil']
     # we assume that time is derived for one time step; or, to be more precise, for one time period (with no
     # intermediate time steps). This time step/time period is described by start time and end time.
     if type(start_time) is str:
@@ -91,7 +90,6 @@ def infer(start_time: Union[str, datetime],
     reprojection = None
     output = None
     mask = None
-    inference_prior = None
     if state_mask is not None:
         state_mask_data_set = gdal.Open(state_mask)
         prior_reference_dataset = state_mask_data_set
@@ -106,7 +104,6 @@ def infer(start_time: Union[str, datetime],
         reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
         output = KafkaOutput(parameter_list, geo_transform, projection, output_directory, next_state_dir)
         mask = state_mask_data_set.ReadAsArray().astype(np.bool)
-        inference_prior = SAILPrior(parameter_list, state_mask)
     else:
         # TODO interprete destination and bounds grid correctly
         if roi is str:
@@ -115,10 +112,8 @@ def infer(start_time: Union[str, datetime],
         roi_bounds = roi.bounds
         # reprojection = Reprojection(roi_bounds, spatial_resolution, spatial_resolution, )
 
-    # prior_files = glob.glob(prior_directory + '/*.vrt')
-    # inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=prior_reference_dataset)
-
-
+    prior_files = glob.glob(prior_directory + '/*.vrt')
+    inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=prior_reference_dataset)
 
     file_refs = _get_valid_files(datasets_dir)
     observations_factory = ObservationsFactory()
