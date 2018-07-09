@@ -102,7 +102,7 @@ def infer(start_time: Union[str, datetime],
         projection = state_mask_data_set.GetProjection()
         destination_spatial_reference_system.ImportFromWkt(projection)
         reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
-        output = KafkaOutput(parameter_list, geo_transform, projection, output_directory, next_state_dir)
+        output = KafkaOutput(parameter_list, geo_transform, projection, output_directory)
         mask = state_mask_data_set.ReadAsArray().astype(np.bool)
     else:
         # TODO interprete destination and bounds grid correctly
