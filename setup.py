@@ -11,8 +11,12 @@ requirements = [
       'typing',
 ]
 
+__version__ = None
+with open('multiply_data_access/version.py') as f:
+    exec(f.read())
+
 setup(name='multiply-inference-engine',
-      version='0.1.dev1',
+      version=__version__,
       description='MULTIPLY Inference Engine',
       author='MULTIPLY Team',
       packages=['multiply_inference_engine'],
