@@ -12,7 +12,7 @@ requirements = [
 ]
 
 __version__ = None
-with open('multiply_data_access/version.py') as f:
+with open('multiply_inference_engine/version.py') as f:
     exec(f.read())
 
 setup(name='multiply-inference-engine',
