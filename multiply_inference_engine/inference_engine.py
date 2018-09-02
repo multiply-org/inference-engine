@@ -15,7 +15,7 @@ from kafka.input_output import KafkaOutput
 from kafka.inference import create_prosail_observation_operator
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
 from multiply_core.observations import data_validation, ObservationsFactory
-from multiply_core.util import FileRef, FileRefCreation, Reprojection, reproject_dataset, get_time_from_string
+from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string
 from shapely.geometry import Polygon
 from shapely.wkt import loads
 from typing import List, Optional, Union
