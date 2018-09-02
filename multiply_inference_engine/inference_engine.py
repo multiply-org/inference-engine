@@ -15,7 +15,7 @@ from kafka.input_output import KafkaOutput
 from kafka.inference import create_prosail_observation_operator
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
 from multiply_core.observations import data_validation, ObservationsFactory
-from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string
+from multiply_core.util import FileRef, FileRefCreation, Reprojection, reproject_dataset, get_time_from_string
 from shapely.geometry import Polygon
 from shapely.wkt import loads
 from typing import List, Optional, Union
@@ -51,7 +51,7 @@ def infer(start_time: Union[str, datetime],
           roi: Optional[Union[str, Polygon]],
           spatial_resolution: Optional[int],
           roi_grid: Optional[str],
-          destination_grid: Optional[str]="EPSG:4326"):
+          destination_grid: Optional[str]):
     """
     :param start_time: The start time of the inference period
     :param end_time: The end time of the inference period
@@ -64,54 +64,38 @@ def infer(start_time: Union[str, datetime],
     :param emulators_directory: The directory where the emulators are placed.
     :param output_directory: The directory to which the output shall be written.
     :param state_mask: A file that defines both the region of interest and the destination grid to which the output
-    shall be written. If not given, roi and spatial_resolution must be set.
+    shall be written. It has a mask to mask out pixels. If roi and spatial resolution are given, the state mask will be
+    reprojected to fit these parameters. If not given, roi, spatial_resolution and destination_grid must be set.
     :param roi: The region of interest, either as shapely Polygon or in a WKT representation.
     :param spatial_resolution: The spatial resolution of the destination grid.
     :param roi_grid: A representation of the spatial reference system in which the roi is given, either as EPSG-code
     or as WKT representation. If not given, it is assumed that the roi is given in the
     destination spatial reference system.
     :param destination_grid: A representation of the spatial reference system in which the output shall be given,
-    either as EPSG-code or as WKT representation. If not given, the output is given in WGS84 coordinates.
+    either as EPSG-code or as WKT representation. If not given, it is assumed that the destination grid is the one
+    provided by the state mask.
     :return:
     """
+    # TODO use actually passed parameter list! this one is sail model specific
+    # parameter_list = ['n', 'cab', 'car', 'cbrown', 'cw', 'cm', 'lai', 'ala', 'bsoil', 'psoil']
     # we assume that time is derived for one time step; or, to be more precise, for one time period (with no
     # intermediate time steps). This time step/time period is described by start time and end time.
-    if start_time is str:
+    if type(start_time) is str:
         start_time = get_time_from_string(start_time)
-    if end_time is str:
+    if type(end_time) is str:
         end_time = get_time_from_string(end_time)
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    prior_reference_dataset = None
-    reprojection = None
-    output = None
-    mask = None
-    if state_mask is not None:
-        state_mask_data_set = gdal.Open(state_mask)
-        prior_reference_dataset = state_mask_data_set
-        geo_transform = state_mask_data_set.GetGeoTransform()
-        ulx, xres, xskew, uly, yskew, yres = geo_transform
-        lrx = ulx + (state_mask_data_set.RasterXSize * xres)
-        lry = uly + (state_mask_data_set.RasterYSize * yres)
-        roi_bounds = (min(ulx, lrx), min(uly, lry), max(ulx, lrx), max(uly, lry))
-        destination_spatial_reference_system = osr.SpatialReference()
-        projection = state_mask_data_set.GetProjection()
-        destination_spatial_reference_system.ImportFromWkt(projection)
-        reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
-        output = KafkaOutput(parameter_list, geo_transform, projection, output_directory, next_state_dir)
-        mask = state_mask_data_set.ReadAsArray().astype(np.bool)
-    else:
-        # TODO interprete destination and bounds grid correctly
-        if roi is str:
-            roi = loads(roi)
-        # bounds: minx, miny, maxx, maxy
-        roi_bounds = roi.bounds
-        # reprojection = Reprojection(roi_bounds, spatial_resolution, spatial_resolution, )
-
+    mask_data_set, reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi, roi_grid,
+                                                                      destination_grid)
+    mask = mask_data_set.ReadAsArray().astype(np.bool)
+    geo_transform = mask_data_set.GetGeoTransform()
+    projection = mask_data_set.GetProjection()
+    output = KafkaOutput(parameter_list, geo_transform, projection, output_directory)
     prior_files = glob.glob(prior_directory + '/*.vrt')
-    inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=prior_reference_dataset)
+    inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=mask_data_set)
 
     file_refs = _get_valid_files(datasets_dir)
     observations_factory = ObservationsFactory()
@@ -120,7 +104,7 @@ def infer(start_time: Union[str, datetime],
     observations = observations_factory.create_observations(file_refs, reprojection, emulators_directory)
 
     linear_kalman = LinearKalman(observations, output, mask, create_prosail_observation_operator, parameter_list,
-                      state_propagation=propagator, prior=None, linear=False)
+                                 state_propagation=propagator, prior=None, linear=False)
 
     p_forecast_inv = None
     x_forecast = None
@@ -148,20 +132,84 @@ def infer(start_time: Union[str, datetime],
     linear_kalman.set_trajectory_uncertainty(Q)
 
     time_grid = [start_time, end_time]
-    print(start_time)
-    print(type(start_time))
-    print(end_time)
-    print(type(end_time))
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
+
+
+def _get_mask_data_set_and_reprojection(state_mask: Optional[str] = None, spatial_resolution: Optional[int] = None,
+                                        roi: Optional[Union[str, Polygon]] = None, roi_grid: Optional[str] = None,
+                                        destination_grid: Optional[str] = None):
+    if roi is not None and spatial_resolution is not None:
+        if type(roi) is str:
+            roi = loads(roi)
+        roi_bounds = roi.bounds
+        if state_mask is not None:
+            mask_data_set = gdal.Open(state_mask)
+        else:
+            mask_data_set = _get_default_global_state_mask()
+        destination_srs = _get_destination_srs(mask_data_set, destination_grid)
+        roi_srs = _get_reference_system(roi_grid)
+        reprojection = Reprojection(roi_bounds, spatial_resolution, spatial_resolution, destination_srs, roi_srs)
+        reprojected_dataset = reprojection.reproject(mask_data_set)
+        return reprojected_dataset, reprojection
+    elif state_mask is not None:
+        state_mask_data_set = gdal.Open(state_mask)
+        geo_transform = state_mask_data_set.GetGeoTransform()
+        ulx, xres, xskew, uly, yskew, yres = geo_transform
+        lrx = ulx + (state_mask_data_set.RasterXSize * xres)
+        lry = uly + (state_mask_data_set.RasterYSize * yres)
+        roi_bounds = (min(ulx, lrx), min(uly, lry), max(ulx, lrx), max(uly, lry))
+        destination_spatial_reference_system = osr.SpatialReference()
+        projection = state_mask_data_set.GetProjection()
+        destination_spatial_reference_system.ImportFromWkt(projection)
+        reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
+        return state_mask_data_set, reprojection
+    else:
+        raise ValueError("Either state mask or roi and spatial resolution and destination grid must be given")
+
+
+def _get_destination_srs(mask_data_set: Optional[gdal.Dataset], destination_grid: Optional[str] = None) \
+        -> osr.SpatialReference:
+    if destination_grid is not None:
+        return _get_reference_system(destination_grid)
+    if mask_data_set is not None:
+        destination_spatial_reference_system = osr.SpatialReference()
+        projection = mask_data_set.GetProjection()
+        destination_spatial_reference_system.ImportFromWkt(projection)
+        return destination_spatial_reference_system
+    raise ValueError("Either state mask or destination grid must be provided")
+
+
+def _get_default_global_state_mask():
+    driver = gdal.GetDriverByName('MEM')
+    dataset = driver.Create('', 360, 90, bands=1)
+    dataset.SetGeoTransform((-180.0, 1.00, 0.0, 90.0, 0.0, -1.00))
+    srs = osr.SpatialReference()
+    srs.SetWellKnownGeogCS("WGS84")
+    dataset.SetProjection(srs.ExportToWkt())
+    dataset.GetRasterBand(1).WriteArray(np.ones((90, 360)))
+    return dataset
+
+
+def _get_reference_system(wkt: str) -> Optional[osr.SpatialReference]:
+    if wkt is None:
+        return None
+    spatial_reference = osr.SpatialReference()
+    if wkt is not None:
+        if wkt.startswith('EPSG:'):
+            epsg_code = int(wkt.split(':')[1])
+            spatial_reference.ImportFromEPSG(epsg_code)
+        else:
+            spatial_reference.ImportFromWkt(wkt)
+    return spatial_reference
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MULTIPLY Inference Engine')
-    parser.add_argument('-s', "--start_time", help='The start time of the inference period',required=True)
+    parser.add_argument('-s', "--start_time", help='The start time of the inference period', required=True)
     parser.add_argument("-e", "--end_time", help="The end time of the inference period", required=True)
-    parser.add_argument("-i", "--inference_type",help="The type of inference. Must be either 'coarse' or 'high'.",
+    parser.add_argument("-i", "--inference_type", help="The type of inference. Must be either 'coarse' or 'high'.",
                         required=True)
-    parser.add_argument("-p", "--parameter_list",help="The list of biophysical parameters that shall be derived",
+    parser.add_argument("-p", "--parameter_list", help="The list of biophysical parameters that shall be derived",
                         required=True)
     parser.add_argument("-pd", "--prior_directory", help="A directory containg the prior files for the "
                                                          "inference period", required=True)
@@ -185,9 +233,7 @@ if __name__ == '__main__':
     parser.add_argument("-dg", "--destination_grid", help="A representation of the spatial reference system in which "
                                                           "the output shall be given, either as EPSG-code or as WKT "
                                                           "representation. If not given, the output is given in the "
-                                                          "grid defined by the 'state_mask'. If no 'state_mask is "
-                                                          "given,' the output is written in WGS84 coordinates.",
-                        default='EPSG:4326')
+                                                          "grid defined by the 'state_mask'.")
     args = parser.parse_args()
     parameter_list = args.parameter_list.split(',')
     infer(args.start_time, args.end_time, args.inference_type, parameter_list, args.prior_directory,
