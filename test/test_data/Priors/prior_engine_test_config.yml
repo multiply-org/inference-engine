@@ -25,12 +25,12 @@ Prior:
 #   and for which prior information is provided.
 # - 2. sub-level contains prior type (ptype). These can be commented out
 #   to be omitted.
-
+  output_directory: ./test/output_dir/
   General:
     directory_data: ./test/test_data/
   sm:
     climatology:
-      climatology_dir: ./test/test_data/
+      dir: ./test/test_data/
     # dynamic:
     #     type: dynamic
     #     model:
