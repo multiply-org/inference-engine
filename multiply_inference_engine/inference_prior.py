@@ -125,14 +125,15 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
             matrix[matrix != 0] = 1. / matrix[matrix != 0]
         return mean_state_vector, block_diag(matrix)
 
+
 class PriorFilesInferencePrior(_WrappingInferencePrior):
 
     def __init__(self, global_prior_file_paths: List[str], reference_dataset: gdal.Dataset):
         """
         This class encapsulates the access to priors produced by the MULTIPLY Prior Engine by retrieving a number of
         global prior files that were the output of the Prior Engine.
-        :param global_prior_file_paths: A list of absolute paths to files that contain information on priors. Files must be
-        named according to format: 'Priors_<name of parameter>_<day of year>_global.vrt.
+        :param global_prior_file_paths: A list of absolute paths to files that contain information on priors.
+        Files must be named according to format: 'Priors_<name of parameter>_<day of year>_global.vrt.
         """
         self._global_prior_file_paths = global_prior_file_paths
         self._global_prior_file_names = []
