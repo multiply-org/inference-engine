@@ -93,7 +93,7 @@ def infer(start_time: Union[str, datetime],
     mask = mask_data_set.ReadAsArray().astype(np.bool)
     geo_transform = mask_data_set.GetGeoTransform()
     projection = mask_data_set.GetProjection()
-    output = KafkaOutput(parameter_list, geo_transform, projection, output_directory)
+    output = KafkaOutput(parameter_list, geo_transform, projection, output_directory, next_state_dir)
     prior_files = glob.glob(prior_directory + '/*.vrt')
     inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=mask_data_set)
 
