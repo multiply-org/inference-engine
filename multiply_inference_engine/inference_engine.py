@@ -238,4 +238,4 @@ if __name__ == '__main__':
     parameter_list = args.parameter_list.split(',')
     infer(args.start_time, args.end_time, args.inference_type, parameter_list, args.prior_directory,
           args.datasets_dir, args.previous_state, args.next_state, args.emulators_directory, args.output_directory,
-          args.state_mask, args.roi, args.spatial_resolution, args.roi_grid, args.destination_grid)
+          args.state_mask, args.roi, int(args.spatial_resolution), args.roi_grid, args.destination_grid)
