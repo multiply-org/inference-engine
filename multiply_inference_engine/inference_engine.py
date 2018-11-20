@@ -143,12 +143,26 @@ def _get_mask_data_set_and_reprojection(state_mask: Optional[str] = None, spatia
         if type(roi) is str:
             roi = loads(roi)
         roi_bounds = roi.bounds
+        roi_center = roi.centroid
+        roi_srs = _get_reference_system(roi_grid)
+        destination_srs = _get_reference_system(destination_grid)
+        wgs84_srs = _get_reference_system('EPSG:4326')
+        if roi_srs is None:
+            if destination_srs is None:
+                roi_srs = wgs84_srs
+                destination_srs = _get_projected_srs(roi_center)
+            else:
+                roi_srs = destination_srs
+        elif destination_srs is None:
+            if roi_srs.IsSame(wgs84_srs):
+                destination_srs = _get_projected_srs(roi_center)
+            else:
+                raise ValueError('Cannot derive destination grid for roi grid {}. Please specify destination grid'.
+                                 format(roi_grid))
         if state_mask is not None:
             mask_data_set = gdal.Open(state_mask)
         else:
             mask_data_set = _get_default_global_state_mask()
-        destination_srs = _get_destination_srs(mask_data_set, destination_grid)
-        roi_srs = _get_reference_system(roi_grid)
         reprojection = Reprojection(roi_bounds, spatial_resolution, spatial_resolution, destination_srs, roi_srs)
         reprojected_dataset = reprojection.reproject(mask_data_set)
         return reprojected_dataset, reprojection
@@ -165,19 +179,16 @@ def _get_mask_data_set_and_reprojection(state_mask: Optional[str] = None, spatia
         reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
         return state_mask_data_set, reprojection
     else:
-        raise ValueError("Either state mask or roi and spatial resolution and destination grid must be given")
+        raise ValueError("Either state mask or roi and spatial resolution must be given")
 
 
-def _get_destination_srs(mask_data_set: Optional[gdal.Dataset], destination_grid: Optional[str] = None) \
-        -> osr.SpatialReference:
-    if destination_grid is not None:
-        return _get_reference_system(destination_grid)
-    if mask_data_set is not None:
-        destination_spatial_reference_system = osr.SpatialReference()
-        projection = mask_data_set.GetProjection()
-        destination_spatial_reference_system.ImportFromWkt(projection)
-        return destination_spatial_reference_system
-    raise ValueError("Either state mask or destination grid must be provided")
+def _get_projected_srs(roi_center):
+    utm_zone = int(1 + (roi_center.coords[0][0] + 180.0) / 6.0)
+    is_northern = int(roi_center.coords[0][1] > 0.0)
+    spatial_reference_system = osr.SpatialReference()
+    spatial_reference_system.SetWellKnownGeogCS('WGS84')
+    spatial_reference_system.SetUTM(utm_zone, is_northern)
+    return spatial_reference_system
 
 
 def _get_default_global_state_mask():
@@ -195,12 +206,11 @@ def _get_reference_system(wkt: str) -> Optional[osr.SpatialReference]:
     if wkt is None:
         return None
     spatial_reference = osr.SpatialReference()
-    if wkt is not None:
-        if wkt.startswith('EPSG:'):
-            epsg_code = int(wkt.split(':')[1])
-            spatial_reference.ImportFromEPSG(epsg_code)
-        else:
-            spatial_reference.ImportFromWkt(wkt)
+    if wkt.startswith('EPSG:'):
+        epsg_code = int(wkt.split(':')[1])
+        spatial_reference.ImportFromEPSG(epsg_code)
+    else:
+        spatial_reference.ImportFromWkt(wkt)
     return spatial_reference
 
 
