@@ -104,9 +104,6 @@ def infer(start_time: Union[str, datetime],
     # an observations wrapper to be passed to kafka
     observations = observations_factory.create_observations(file_refs, reprojection, emulators_directory)
 
-    linear_kalman = LinearKalman(observations, output, mask, create_prosail_observation_operator, parameter_list,
-                                 state_propagation=propagator, prior=None, linear=False)
-
     p_forecast_inv = None
     x_forecast = None
     if previous_state_dir is not None and os.path.exists(previous_state_dir):
@@ -124,6 +121,10 @@ def infer(start_time: Union[str, datetime],
             x_forecast = processed_prior[0]
         if p_forecast_inv is None:
             p_forecast_inv = processed_prior[1]
+        mask = processed_prior[2]
+
+    linear_kalman = LinearKalman(observations, output, mask, create_prosail_observation_operator, parameter_list,
+                                 state_propagation=propagator, prior=None, linear=False)
 
     # Inflation amount for propagation
     Q = np.zeros_like(x_forecast)

@@ -14,6 +14,31 @@ __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 LOG = logging.getLogger(__name__ + ".inference_prior")
 
 
+def _check_state_vector_for_nan(mean_state_vector: np.array, state_grid: np.array, matrix: np.array,
+                                len_parameters: int) \
+        -> (np.array, np.array, np.array):
+    nan_indexes = np.unique(np.floor((np.where(np.isnan(mean_state_vector))[0] / len_parameters))).astype(int)
+    return _check_for_nan(mean_state_vector, state_grid, matrix, nan_indexes, len_parameters)
+
+
+def _check_matrix_for_nan(mean_state_vector: np.array, state_grid: np.array, matrix: np.array,
+                          len_parameters: int) -> (np.array, np.array, np.array):
+    nan_indexes = np.where(np.isnan(matrix))[0]
+    return _check_for_nan(mean_state_vector, state_grid, matrix, nan_indexes, len_parameters)
+
+
+def _check_for_nan(mean_state_vector: np.array, state_grid: np.array, matrix: np.array, nan_indexes: np.array,
+                   len_parameters: int) -> (np.array, np.array, np.array):
+    if len(nan_indexes) > 0:
+        mean_state_vector_nan_indices = \
+            np.array([nan_indexes * len_parameters + i for i in range(len_parameters)]).flatten()
+        mean_state_vector = np.delete(mean_state_vector, mean_state_vector_nan_indices)
+        state_grid_valid_indexes = np.asarray(np.where(state_grid))
+        state_grid[tuple(state_grid_valid_indexes[:, tuple(nan_indexes)])] = False
+        matrix = np.delete(matrix, nan_indexes, axis=0)
+    return mean_state_vector, state_grid, matrix
+
+
 class InferencePrior(object):
     """A class to wrap access to priors created by the MULTIPLY prior engine to the inference engine."""
 
@@ -75,16 +100,18 @@ class _WrappingInferencePrior(metaclass=ABCMeta):
 
     @abstractmethod
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix, np.array):
         """
         This method retrieves the requested parameters for the given time and region. For each parameter, it returns
-        a mean state vector and covariance matrix which might be inverse.
+        a mean state vector and covariance matrix which might be inverse. If this method encounters nan-values in the
+        prior data, it will exclude them from the state vector and the matrix and edit the mask.
         :param parameters: List of parameters for which prior information is requested
         :param time: The time for which information is requested.
         :param state_grid: A state grid to indicate the region for which information must be retrieved.
         Must be given in the form of a 2D numpy array.
         :param inv_cov: Whether the covariance matrix shall be inverse.
-        :return:
+        :return: The mean state vector, a covariance or inverse covariance matrix (depending on the parameter setting)
+        and an updated state grid.
         """
         # """This method reads in the prior parameters for a given `time step`,
         # processes them to match the state grid, and returns a mean state
@@ -105,7 +132,7 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         self._reference_dataset = reference_dataset
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix, np.array):
         if type(time) is datetime:
             time = datetime.strftime(time, "%Y-%m-%d")
         prior_engine = PriorEngine(datestr=time, variables=parameters, config=self._prior_engine_config_file)
@@ -120,10 +147,14 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
             vrt_dataset = list(priors[parameter].values())[0]
             reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
             mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
+            mean_state_vector, state_grid, matrix = \
+                _check_state_vector_for_nan(mean_state_vector, state_grid, matrix, num_params)
             matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid] ** 2
+            mean_state_vector, state_grid, matrix = \
+                _check_matrix_for_nan(mean_state_vector, state_grid, matrix, num_params)
         if inv_cov:
             matrix[matrix != 0] = 1. / matrix[matrix != 0]
-        return mean_state_vector, block_diag(matrix)
+        return mean_state_vector, block_diag(matrix), matrix
 
 
 class PriorFilesInferencePrior(_WrappingInferencePrior):
@@ -144,7 +175,7 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
         self._reference_dataset = reference_dataset
 
     def process_prior(self, parameters: List[str], time: Union[str, datetime], state_grid: np.array,
-                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix):
+                      inv_cov: bool = True) -> (np.array, scipy.sparse.coo_matrix, np.array):
         num_pixels = state_grid.sum()
         num_params = len(parameters)
         state_vector_shape = num_pixels * num_params
@@ -168,10 +199,14 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
                 vrt_dataset = gdal.Open(self._global_prior_file_paths[indices[0]])
                 reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
                 mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
+                mean_state_vector, state_grid, matrix = \
+                    _check_state_vector_for_nan(mean_state_vector, state_grid, matrix, num_params)
                 matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]**2
+                mean_state_vector, state_grid, matrix = \
+                    _check_matrix_for_nan(mean_state_vector, state_grid, matrix, num_params)
         if inv_cov:
             matrix[matrix != 0] = 1. / matrix[matrix != 0]
-        return mean_state_vector, block_diag(matrix)
+        return mean_state_vector, block_diag(matrix), state_grid
 
 
 class DummyInferencePrior(_WrappingInferencePrior):
