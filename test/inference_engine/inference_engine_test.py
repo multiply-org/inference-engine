@@ -1,4 +1,3 @@
-import gdal
 from multiply_inference_engine import _get_mask_data_set_and_reprojection
 import numpy as np
 import pytest
