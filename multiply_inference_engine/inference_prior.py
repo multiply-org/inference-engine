@@ -141,15 +141,17 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         num_params = len(parameters)
         state_vector_shape = num_pixels * num_params
         matrix_shape = (num_pixels, num_params, num_params)
-        mean_state_vector = np.empty(shape=state_vector_shape, dtype=np.float32)
-        matrix = np.empty(shape=matrix_shape, dtype=np.float32)
+        mean_state_vector = np.zeros(shape=state_vector_shape, dtype=np.float32)
+        matrix = np.zeros(shape=matrix_shape, dtype=np.float32)
         for i, parameter in enumerate(parameters):
             vrt_dataset = list(priors[parameter].values())[0]
             reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
             mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
             mean_state_vector, state_grid, matrix = \
                 _check_state_vector_for_nan(mean_state_vector, state_grid, matrix, num_params)
-            matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid] ** 2
+            matrix_data = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
+            matrix_data[matrix_data < 1e-8] = 1e-8
+            matrix[:, i, i] = matrix_data ** 2
             mean_state_vector, state_grid, matrix = \
                 _check_matrix_for_nan(mean_state_vector, state_grid, matrix, num_params)
         if inv_cov:
@@ -180,7 +182,7 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
         num_params = len(parameters)
         state_vector_shape = num_pixels * num_params
         matrix_shape = (num_pixels, num_params, num_params)
-        mean_state_vector = np.empty(shape=state_vector_shape, dtype=np.float32)
+        mean_state_vector = np.zeros(shape=state_vector_shape, dtype=np.float32)
         matrix = np.zeros(shape=matrix_shape, dtype=np.float32)
         if type(time) is str:
             time = datetime.strptime(time, "%Y-%m-%d")
@@ -201,7 +203,9 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
                 mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
                 mean_state_vector, state_grid, matrix = \
                     _check_state_vector_for_nan(mean_state_vector, state_grid, matrix, num_params)
-                matrix[:, i, i] = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]**2
+                matrix_data = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
+                matrix_data[matrix_data < 1e-8] = 1e-8
+                matrix[:, i, i] = matrix_data**2
                 mean_state_vector, state_grid, matrix = \
                     _check_matrix_for_nan(mean_state_vector, state_grid, matrix, num_params)
         if inv_cov:
