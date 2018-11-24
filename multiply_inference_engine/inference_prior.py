@@ -146,11 +146,13 @@ class PriorEngineInferencePrior(_WrappingInferencePrior):
         for i, parameter in enumerate(parameters):
             vrt_dataset = list(priors[parameter].values())[0]
             reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
-            mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
+            data = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
+            data[data < 0.01] = 0.01
+            mean_state_vector[i::num_params] = data
             mean_state_vector, state_grid, matrix = \
                 _check_state_vector_for_nan(mean_state_vector, state_grid, matrix, num_params)
             matrix_data = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
-            matrix_data[matrix_data < 1e-8] = 1e-8
+            matrix_data[matrix_data < 0.01] = 0.01
             matrix[:, i, i] = matrix_data ** 2
             mean_state_vector, state_grid, matrix = \
                 _check_matrix_for_nan(mean_state_vector, state_grid, matrix, num_params)
@@ -200,11 +202,13 @@ class PriorFilesInferencePrior(_WrappingInferencePrior):
             else:
                 vrt_dataset = gdal.Open(self._global_prior_file_paths[indices[0]])
                 reprojected_vrt_dataset = reproject_image(vrt_dataset, self._reference_dataset)
-                mean_state_vector[i::num_params] = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()[state_grid]
+                data = reprojected_vrt_dataset.GetRasterBand(1).ReadAsArray()
+                data[data < 0.01] = 0.01
+                mean_state_vector[i::num_params] = data[state_grid]
                 mean_state_vector, state_grid, matrix = \
                     _check_state_vector_for_nan(mean_state_vector, state_grid, matrix, num_params)
                 matrix_data = reprojected_vrt_dataset.GetRasterBand(2).ReadAsArray()[state_grid]
-                matrix_data[matrix_data < 1e-8] = 1e-8
+                matrix_data[matrix_data < 0.01] = 0.01
                 matrix[:, i, i] = matrix_data**2
                 mean_state_vector, state_grid, matrix = \
                     _check_matrix_for_nan(mean_state_vector, state_grid, matrix, num_params)
