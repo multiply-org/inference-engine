@@ -152,6 +152,10 @@ def _infer(start_time: Union[str, datetime],
         x_fname = os.path.join(previous_state_dir, x_fname)
         if os.path.exists(x_fname):
             x_forecast = np.load(x_fname)['arr_0']
+        mask_fname = "state_mask_%s.npz" % start_time.strftime("A%Y%j")
+        mask_fname = os.path.join(previous_state_dir, mask_fname)
+        if os.path.exists(mask_fname):
+            mask = np.load(mask_fname)['arr_0']
     if p_forecast_inv is None or x_forecast is None:
         processed_prior = inference_prior.process_prior(parameter_list, start_time, mask)
         if x_forecast is None:
