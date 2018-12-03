@@ -51,7 +51,8 @@ def infer(start_time: Union[str, datetime],
           roi: Optional[Union[str, Polygon]],
           spatial_resolution: Optional[int],
           roi_grid: Optional[str],
-          destination_grid: Optional[str]):
+          destination_grid: Optional[str],
+          with_profiling: bool = False):
     """
     :param start_time: The start time of the inference period
     :param end_time: The end time of the inference period
@@ -74,8 +75,44 @@ def infer(start_time: Union[str, datetime],
     :param destination_grid: A representation of the spatial reference system in which the output shall be given,
     either as EPSG-code or as WKT representation. If not given, it is assumed that the destination grid is the one
     provided by the state mask.
+    :param: with_profiling: If true, the inference will output profiling info after its run.
     :return:
     """
+    try:
+        if with_profiling:
+            import cProfile
+            cProfile.runctx('_infer(start_time,end_time,inference_type,parameter_list,prior_directory,datasets_dir,'
+                        'previous_state_dir,next_state_dir,emulators_directory,output_directory,state_mask,roi,'
+                        'spatial_resolution,roi_grid,destination_grid)', globals(), locals(), None)
+        else:
+            _infer(start_time, end_time, inference_type, parameter_list, prior_directory, datasets_dir,
+                   previous_state_dir, next_state_dir, emulators_directory, output_directory, state_mask,roi,
+                   spatial_resolution, roi_grid, destination_grid)
+    except BaseException as e:
+        import sys
+        import traceback
+        logging.warning(repr(e))
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback.print_exception(exc_type, exc_value, exc_traceback)
+        sys.stdout.flush()
+        raise e
+
+
+def _infer(start_time: Union[str, datetime],
+          end_time: Union[str, datetime],
+          inference_type: str,
+          parameter_list: List[str],
+          prior_directory: str,
+          datasets_dir: str,
+          previous_state_dir: str,
+          next_state_dir: str,
+          emulators_directory: str,
+          output_directory: str,
+          state_mask: Optional[str],
+          roi: Optional[Union[str, Polygon]],
+          spatial_resolution: Optional[int],
+          roi_grid: Optional[str],
+          destination_grid: Optional[str]):
     # TODO use actually passed parameter list! this one is sail model specific
     # parameter_list = ['n', 'cab', 'car', 'cbrown', 'cw', 'cm', 'lai', 'ala', 'bsoil', 'psoil']
     # we assume that time is derived for one time step; or, to be more precise, for one time period (with no
@@ -250,4 +287,4 @@ if __name__ == '__main__':
     parameter_list = args.parameter_list.split(',')
     infer(args.start_time, args.end_time, args.inference_type, parameter_list, args.prior_directory,
           args.datasets_dir, args.previous_state, args.next_state, args.emulators_directory, args.output_directory,
-          args.state_mask, args.roi, int(args.spatial_resolution), args.roi_grid, args.destination_grid)
+          args.state_mask, args.roi, int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
