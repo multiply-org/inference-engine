@@ -28,6 +28,7 @@ def _get_valid_files(datasets_dir: str) -> FileRef:
     file_ref_creation = FileRefCreation()
     found_files = glob.glob(datasets_dir + '/**', recursive=True)
     for found_file in found_files:
+        found_file = found_file.replace('\\', '/')
         type = data_validation.get_valid_type(found_file)
         if type is not '':
             file_ref = file_ref_creation.get_file_ref(type, found_file)
