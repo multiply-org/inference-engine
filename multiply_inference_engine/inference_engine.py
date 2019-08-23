@@ -40,13 +40,12 @@ def _get_valid_files(datasets_dir: str) -> FileRef:
 
 def infer(start_time: Union[str, datetime],
           end_time: Union[str, datetime],
-          inference_type: str,
           parameter_list: List[str],
           prior_directory: str,
           datasets_dir: str,
           previous_state_dir: str,
           next_state_dir: str,
-          emulators_directory: str,
+          forward_models: List[str],
           output_directory: str,
           state_mask: Optional[str],
           roi: Optional[Union[str, Polygon]],
@@ -57,13 +56,12 @@ def infer(start_time: Union[str, datetime],
     """
     :param start_time: The start time of the inference period
     :param end_time: The end time of the inference period
-    :param inference_type: The type of inference. Must be either 'coarse' or 'high'.
     :param parameter_list: The list of bio-physical parameters that shall be inferred.
     :param prior_directory: A directory where the global .vrt-files of the priors are located.
     :param datasets_dir: A directory where the input data is located.
     :param previous_state_dir: A directory where the state from the previous inference period has been saved to.
     :param next_state_dir: A directory to which the state can be saved.
-    :param emulators_directory: The directory where the emulators are placed.
+    :param forward_models: The names of the forward models
     :param output_directory: The directory to which the output shall be written.
     :param state_mask: A file that defines both the region of interest and the destination grid to which the output
     shall be written. It has a mask to mask out pixels. If roi and spatial resolution are given, the state mask will be
@@ -86,8 +84,8 @@ def infer(start_time: Union[str, datetime],
                         'previous_state_dir,next_state_dir,emulators_directory,output_directory,state_mask,roi,'
                         'spatial_resolution,roi_grid,destination_grid)', globals(), locals(), None)
         else:
-            _infer(start_time, end_time, inference_type, parameter_list, prior_directory, datasets_dir,
-                   previous_state_dir, next_state_dir, emulators_directory, output_directory, state_mask,roi,
+            _infer(start_time, end_time, parameter_list, prior_directory, datasets_dir,
+                   previous_state_dir, next_state_dir, forward_models, output_directory, state_mask,roi,
                    spatial_resolution, roi_grid, destination_grid)
     except BaseException as e:
         import sys
@@ -101,13 +99,12 @@ def infer(start_time: Union[str, datetime],
 
 def _infer(start_time: Union[str, datetime],
           end_time: Union[str, datetime],
-          inference_type: str,
           parameter_list: List[str],
           prior_directory: str,
           datasets_dir: str,
           previous_state_dir: str,
           next_state_dir: str,
-          emulators_directory: str,
+          forward_models: List[str],
           output_directory: str,
           state_mask: Optional[str],
           roi: Optional[Union[str, Polygon]],
@@ -140,7 +137,7 @@ def _infer(start_time: Union[str, datetime],
     observations_factory = ObservationsFactory()
     observations_factory.sort_file_ref_list(file_refs)
     # an observations wrapper to be passed to kafka
-    observations = observations_factory.create_observations(file_refs, reprojection, emulators_directory)
+    observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
 
     p_forecast_inv = None
     x_forecast = None
@@ -261,8 +258,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MULTIPLY Inference Engine')
     parser.add_argument('-s', "--start_time", help='The start time of the inference period', required=True)
     parser.add_argument("-e", "--end_time", help="The end time of the inference period", required=True)
-    parser.add_argument("-i", "--inference_type", help="The type of inference. Must be either 'coarse' or 'high'.",
-                        required=True)
     parser.add_argument("-p", "--parameter_list", help="The list of biophysical parameters that shall be derived",
                         required=True)
     parser.add_argument("-pd", "--prior_directory", help="A directory containg the prior files for the "
@@ -270,7 +265,7 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--datasets_dir", help="The datasets to be used for inferring data.", required=True)
     parser.add_argument("-ps", "--previous_state", help="The directory where the previous state has been saved.")
     parser.add_argument("-ns", "--next_state", help="The directory where the next state shall be saved.")
-    parser.add_argument("-em", "--emulators_directory", help="The directory where the emulators are located.")
+    parser.add_argument("-fm", "--forward_models", help="The names of the forward models that shall be used.")
     parser.add_argument("-o", "--output_directory", help="The output directory to which the output file shall be "
                                                          "written.", required=True)
     parser.add_argument("-sm", "--state_mask", help="A file containing a state mask to describe the output space "
@@ -290,6 +285,6 @@ if __name__ == '__main__':
                                                           "grid defined by the 'state_mask'.")
     args = parser.parse_args()
     parameter_list = args.parameter_list.split(',')
-    infer(args.start_time, args.end_time, args.inference_type, parameter_list, args.prior_directory,
-          args.datasets_dir, args.previous_state, args.next_state, args.emulators_directory, args.output_directory,
-          args.state_mask, args.roi, int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
+    infer(args.start_time, args.end_time, parameter_list, args.prior_directory, args.datasets_dir, args.previous_state,
+          args.next_state, args.forward_models, args.output_directory, args.state_mask, args.roi,
+          int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
