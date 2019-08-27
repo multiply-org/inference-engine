@@ -7,13 +7,14 @@ import os
 import osr
 import scipy.sparse as sp
 
-from multiply_inference_engine.inference_prior import InferencePrior
+from .inference_prior import InferencePrior
+from .inference_writer import InferenceWriter
 
 from datetime import datetime
 from kafka import LinearKalman
-from kafka.input_output import KafkaOutput
 from kafka.inference import create_prosail_observation_operator
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
+from multiply_core.models import get_forward_model
 from multiply_core.observations import data_validation, ObservationsFactory
 from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string
 from shapely.geometry import Polygon
@@ -81,11 +82,11 @@ def infer(start_time: Union[str, datetime],
         if with_profiling:
             import cProfile
             cProfile.runctx('_infer(start_time,end_time,inference_type,parameter_list,prior_directory,datasets_dir,'
-                        'previous_state_dir,next_state_dir,emulators_directory,output_directory,state_mask,roi,'
-                        'spatial_resolution,roi_grid,destination_grid)', globals(), locals(), None)
+                            'previous_state_dir,next_state_dir,emulators_directory,output_directory,state_mask,roi,'
+                            'spatial_resolution,roi_grid,destination_grid)', globals(), locals(), None)
         else:
             _infer(start_time, end_time, parameter_list, prior_directory, datasets_dir,
-                   previous_state_dir, next_state_dir, forward_models, output_directory, state_mask,roi,
+                   previous_state_dir, next_state_dir, forward_models, output_directory, state_mask, roi,
                    spatial_resolution, roi_grid, destination_grid)
     except BaseException as e:
         import sys
@@ -98,21 +99,19 @@ def infer(start_time: Union[str, datetime],
 
 
 def _infer(start_time: Union[str, datetime],
-          end_time: Union[str, datetime],
-          parameter_list: List[str],
-          prior_directory: str,
-          datasets_dir: str,
-          previous_state_dir: str,
-          next_state_dir: str,
-          forward_models: List[str],
-          output_directory: str,
-          state_mask: Optional[str],
-          roi: Optional[Union[str, Polygon]],
-          spatial_resolution: Optional[int],
-          roi_grid: Optional[str],
-          destination_grid: Optional[str]):
-    # TODO use actually passed parameter list! this one is sail model specific
-    # parameter_list = ['n', 'cab', 'car', 'cbrown', 'cw', 'cm', 'lai', 'ala', 'bsoil', 'psoil']
+           end_time: Union[str, datetime],
+           parameter_list: List[str],
+           prior_directory: str,
+           datasets_dir: str,
+           previous_state_dir: str,
+           next_state_dir: str,
+           forward_models: List[str],
+           output_directory: str,
+           state_mask: Optional[str],
+           roi: Optional[Union[str, Polygon]],
+           spatial_resolution: Optional[int],
+           roi_grid: Optional[str],
+           destination_grid: Optional[str]):
     # we assume that time is derived for one time step; or, to be more precise, for one time period (with no
     # intermediate time steps). This time step/time period is described by start time and end time.
     if type(start_time) is str:
@@ -128,8 +127,16 @@ def _infer(start_time: Union[str, datetime],
     mask = mask_data_set.ReadAsArray().astype(np.bool)
     geo_transform = mask_data_set.GetGeoTransform()
     projection = mask_data_set.GetProjection()
-    output = KafkaOutput(parameter_list, geo_transform, projection, output_directory, fmt='GTiff',
-                         state_folder=next_state_dir)
+    complete_parameter_list = []
+    for forward_model_name in forward_models:
+        forward_model = get_forward_model(forward_model_name)
+        if forward_model is not None:
+            model_variables = forward_model.variables
+            for model_variable in model_variables:
+                if model_variable not in complete_parameter_list:
+                    complete_parameter_list.append(model_variable)
+    output = InferenceWriter(parameter_list, complete_parameter_list, output_directory, start_time, geo_transform,
+                             projection, mask.shape[1], mask.shape[0], state_folder=next_state_dir)
     prior_files = glob.glob(prior_directory + '/*.vrt')
     inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=mask_data_set)
 
@@ -155,22 +162,24 @@ def _infer(start_time: Union[str, datetime],
         if os.path.exists(mask_fname):
             mask = np.load(mask_fname)['arr_0']
     if p_forecast_inv is None or x_forecast is None:
-        processed_prior = inference_prior.process_prior(parameter_list, start_time, mask)
+        processed_prior = inference_prior.process_prior(complete_parameter_list, start_time, mask)
         if x_forecast is None:
             x_forecast = processed_prior[0]
         if p_forecast_inv is None:
             p_forecast_inv = processed_prior[1]
         mask = processed_prior[2]
 
-    linear_kalman = LinearKalman(observations, output, mask, create_prosail_observation_operator, parameter_list,
-                                 state_propagation=propagator, prior=None, linear=False)
+    linear_kalman = LinearKalman(observations, output, mask, create_prosail_observation_operator,
+                                 complete_parameter_list, state_propagation=propagator, prior=None, linear=False)
 
     # Inflation amount for propagation
-    Q = np.zeros_like(x_forecast)
-    Q[6::10] = 0.05
-
+    q = np.zeros_like(x_forecast)
+    # todo figure out correct setting
+    if 'lai' in complete_parameter_list:
+        lai_index = complete_parameter_list.index('lai')
+        q[lai_index::len(complete_parameter_list)] = 0.05
     linear_kalman.set_trajectory_model()
-    linear_kalman.set_trajectory_uncertainty(Q)
+    linear_kalman.set_trajectory_uncertainty(q)
 
     time_grid = [start_time, end_time]
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
