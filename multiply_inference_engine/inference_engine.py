@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import os
 import osr
+import pdb
 import scipy.sparse as sp
 
 from .inference_prior import InferencePrior
@@ -147,6 +148,8 @@ def _infer(start_time: Union[str, datetime],
     # an observations wrapper to be passed to kafka
     observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
 
+    pdb.set_trace()
+
     p_forecast_inv = None
     x_forecast = None
     if previous_state_dir is not None and os.path.exists(previous_state_dir):
@@ -163,12 +166,14 @@ def _infer(start_time: Union[str, datetime],
         if os.path.exists(mask_fname):
             mask = np.load(mask_fname)['arr_0']
     if p_forecast_inv is None or x_forecast is None:
+        pdb.set_trace()
         processed_prior = inference_prior.process_prior(complete_parameter_list, start_time, mask)
         if x_forecast is None:
             x_forecast = processed_prior[0]
         if p_forecast_inv is None:
             p_forecast_inv = processed_prior[1]
         mask = processed_prior[2]
+    pdb.set_trace()
 
     linear_kalman = LinearKalman(observations, output, mask, create_prosail_observation_operator,
                                  complete_parameter_list, state_propagation=propagator, prior=None, linear=False)
