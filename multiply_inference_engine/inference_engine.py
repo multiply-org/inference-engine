@@ -10,12 +10,13 @@ import scipy.sparse as sp
 from .inference_prior import InferencePrior
 from .inference_writer import InferenceWriter
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from kafka import LinearKalman
 from kafka.inference import create_prosail_observation_operator
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
+from kaska import get_inverter, KaSKA
 from multiply_core.models import get_forward_model
-from multiply_core.observations import data_validation, ObservationsFactory
+from multiply_core.observations import data_validation, GeoTiffWriter, ObservationsFactory
 from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string
 from shapely.geometry import Polygon
 from shapely.wkt import loads
@@ -183,6 +184,100 @@ def _infer(start_time: Union[str, datetime],
 
     time_grid = [start_time, end_time]
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
+
+
+def infer_kaska(start_time: Union[str, datetime],
+                end_time: Union[str, datetime],
+                time_step: Union[int, timedelta],
+                datasets_dir: str,
+                forward_models: List[str],
+                output_directory: str,
+                state_mask: Optional[str],
+                roi: Optional[Union[str, Polygon]],
+                spatial_resolution: Optional[int],
+                roi_grid: Optional[str],
+                destination_grid: Optional[str],
+                tile_index_x: Optional[int] = 0,
+                tile_index_y: Optional[int] = 0,
+                tile_width: Optional[int] = None,
+                tile_height: Optional[int] = None
+                ):
+    if type(start_time) is str:
+        start_time = get_time_from_string(start_time)
+    if type(end_time) is str:
+        end_time = get_time_from_string(end_time)
+    if type(time_step) is int:
+        time_step = timedelta(days=time_step)
+    time_grid = []
+    current_time = start_time
+    while current_time < end_time:
+        time_grid.append(current_time)
+        current_time += time_step
+    time_grid.append(end_time)
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+    mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
+                                                                              roi_grid, destination_grid)
+    reprojection = untiled_reprojection
+    raster_width = mask_data_set.RasterXSize
+    raster_height = mask_data_set.RasterYSize
+    offset_x = 0
+    offset_y = 0
+    if tile_width is not None and tile_height is not None:
+        geo_transform = mask_data_set.GetGeoTransform()
+        ulx, xres, xskew, uly, yskew, yres = geo_transform
+        minlrx = ulx + (mask_data_set.RasterXSize * xres)
+        minlry = uly + (mask_data_set.RasterYSize * yres)
+        ulx = ulx + (tile_index_x * tile_width * xres)
+        uly = uly + (tile_index_y * tile_height * yres)
+        lrx = ulx + (tile_width * xres)
+        lry = uly + (tile_height * yres)
+        raster_width = tile_width
+        raster_height = tile_height
+        if (lrx > ulx and lrx > minlrx) or (lrx < ulx and lrx < minlrx):
+            lrx = minlrx
+            raster_width = np.abs(ulx - lrx) / xres
+        if (lry > uly and lry > minlry) or (lry < uly and lry < minlry):
+            lry = minlry
+            raster_height = np.abs(uly - lry) / yres
+        offset_x = tile_index_x * tile_width
+        offset_y = tile_index_y * tile_height
+        roi_bounds = (min(ulx, lrx), min(uly, lry), max(ulx, lrx), max(uly, lry))
+        destination_spatial_reference_system = osr.SpatialReference()
+        projection = mask_data_set.GetProjection()
+        destination_spatial_reference_system.ImportFromWkt(projection)
+        reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
+    elif tile_width is not None or tile_height is not None:
+        logging.warning('To use tiling, parameters tileWidth and tileHeight must be set. Continue without tiling')
+    file_refs = _get_valid_files(datasets_dir)
+    observations_factory = ObservationsFactory()
+    observations_factory.sort_file_ref_list(file_refs)
+    # an observations wrapper to be passed to kafka
+    observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
+
+    # todo make this more elaborate when more than one inverter is available
+    approx_inverter = get_inverter("prosail_5paras", "Sentinel2")
+
+    kaska = KaSKA(observations=observations,
+                  time_grid=time_grid,
+                  state_mask=None,
+                  approx_inverter=approx_inverter,
+                  output_folder=None,
+                  chunk=None)
+    parameter_names, parameter_data = kaska.run_retrieval()
+    outfile_names = []
+    for parameter_name in parameter_names:
+        for time_step in time_grid:
+            time = time_step.strftime('%Y-%m-%d')
+            outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
+    writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
+                           mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
+    data = []
+    for sub_data in parameter_data:
+        for i in range(len(time_grid)):
+            data.append(sub_data[i, :, :])
+    writer.write(data, raster_width, raster_height, offset_x, offset_y)
+    writer.close()
 
 
 def _get_mask_data_set_and_reprojection(state_mask: Optional[str] = None, spatial_resolution: Optional[int] = None,
