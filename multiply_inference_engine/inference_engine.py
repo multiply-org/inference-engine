@@ -48,8 +48,8 @@ def infer(start_time: Union[str, datetime],
           datasets_dir: str,
           previous_state_dir: str,
           next_state_dir: str,
-          emulators_directory: str,
-          forward_models: List[str],
+          emulators_directory: Optional[str],
+          forward_models: Optional[List[str]],
           output_directory: str,
           state_mask: Optional[str],
           roi: Optional[Union[str, Polygon]],
@@ -108,8 +108,8 @@ def _infer(start_time: Union[str, datetime],
            datasets_dir: str,
            previous_state_dir: str,
            next_state_dir: str,
-           emulators_directory: str,
-           forward_models: List[str],
+           emulators_directory: Optional[str],
+           forward_models: Optional[List[str]],
            output_directory: str,
            state_mask: Optional[str],
            roi: Optional[Union[str, Polygon]],
@@ -400,7 +400,9 @@ if __name__ == '__main__':
                                                           "grid defined by the 'state_mask'.")
     args = parser.parse_args()
     parameter_list = args.parameter_list.split(',')
-    forward_model_list = args.forward_models.split(',')
+    forward_model_list = None
+    if args.forward_models is not None:
+        forward_model_list = args.forward_models.split(',')
     infer(args.start_time, args.end_time, parameter_list, args.prior_directory, args.datasets_dir, args.previous_state,
           args.next_state, args.emulators_directory, forward_model_list, args.output_directory, args.state_mask, args.roi,
           int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
