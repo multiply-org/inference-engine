@@ -1,6 +1,7 @@
 import argparse
 import gdal
 import glob
+import json
 import logging
 import numpy as np
 import os
@@ -47,6 +48,7 @@ def infer(start_time: Union[str, datetime],
           datasets_dir: str,
           previous_state_dir: str,
           next_state_dir: str,
+          emulators_directory: str,
           forward_models: List[str],
           output_directory: str,
           state_mask: Optional[str],
@@ -106,6 +108,7 @@ def _infer(start_time: Union[str, datetime],
            datasets_dir: str,
            previous_state_dir: str,
            next_state_dir: str,
+           emulators_directory: str,
            forward_models: List[str],
            output_directory: str,
            state_mask: Optional[str],
@@ -122,7 +125,12 @@ def _infer(start_time: Union[str, datetime],
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
-
+    if forward_models is None and emulators_directory is not None:
+        model_metadata_file = f'{emulators_directory}/metadata.json'
+        if os.path.exists(model_metadata_file):
+            model_metadata = json.load(model_metadata_file)
+            forward_models = [model_metadata['id']]
+            logging.info(f"Determined forward model '{forward_models[0]}' from emulators directory")
     mask_data_set, reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi, roi_grid,
                                                                       destination_grid)
     mask = mask_data_set.ReadAsArray().astype(np.bool)
@@ -362,6 +370,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MULTIPLY Inference Engine')
     parser.add_argument('-s', "--start_time", help='The start time of the inference period', required=True)
     parser.add_argument("-e", "--end_time", help="The end time of the inference period", required=True)
+    parser.add_argument("-i", "--inference_type", help="The type of inference. Must be either 'coarse' or 'high'.",
+                        required=True)
     parser.add_argument("-p", "--parameter_list", help="The list of biophysical parameters that shall be derived",
                         required=True)
     parser.add_argument("-pd", "--prior_directory", help="A directory containg the prior files for the "
@@ -369,6 +379,7 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--datasets_dir", help="The datasets to be used for inferring data.", required=True)
     parser.add_argument("-ps", "--previous_state", help="The directory where the previous state has been saved.")
     parser.add_argument("-ns", "--next_state", help="The directory where the next state shall be saved.")
+    parser.add_argument("-em", "--emulators_directory", help="The directory where the emulators are located.")
     parser.add_argument("-fm", "--forward_models", help="The names of the forward models that shall be used.")
     parser.add_argument("-o", "--output_directory", help="The output directory to which the output file shall be "
                                                          "written.", required=True)
@@ -391,5 +402,5 @@ if __name__ == '__main__':
     parameter_list = args.parameter_list.split(',')
     forward_model_list = args.forward_models.split(',')
     infer(args.start_time, args.end_time, parameter_list, args.prior_directory, args.datasets_dir, args.previous_state,
-          args.next_state, forward_model_list, args.output_directory, args.state_mask, args.roi,
+          args.next_state, args.emulators_directory, forward_model_list, args.output_directory, args.state_mask, args.roi,
           int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
