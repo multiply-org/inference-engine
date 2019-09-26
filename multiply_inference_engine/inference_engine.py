@@ -89,8 +89,8 @@ def infer(start_time: Union[str, datetime],
                             'spatial_resolution,roi_grid,destination_grid)', globals(), locals(), None)
         else:
             _infer(start_time, end_time, parameter_list, prior_directory, datasets_dir,
-                   previous_state_dir, next_state_dir, forward_models, output_directory, state_mask, roi,
-                   spatial_resolution, roi_grid, destination_grid)
+                   previous_state_dir, next_state_dir, emulators_directory, forward_models, output_directory,
+                   state_mask, roi, spatial_resolution, roi_grid, destination_grid)
     except BaseException as e:
         import sys
         import traceback
@@ -128,9 +128,10 @@ def _infer(start_time: Union[str, datetime],
     if forward_models is None and emulators_directory is not None:
         model_metadata_file = f'{emulators_directory}/metadata.json'
         if os.path.exists(model_metadata_file):
-            model_metadata = json.load(model_metadata_file)
-            forward_models = [model_metadata['id']]
-            logging.info(f"Determined forward model '{forward_models[0]}' from emulators directory")
+            with(open(model_metadata_file, 'r')) as model_file:
+                model_metadata = json.load(model_file)
+                forward_models = [model_metadata['id']]
+                logging.info(f"Determined forward model '{forward_models[0]}' from emulators directory")
     mask_data_set, reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi, roi_grid,
                                                                       destination_grid)
     mask = mask_data_set.ReadAsArray().astype(np.bool)
