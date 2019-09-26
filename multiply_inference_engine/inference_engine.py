@@ -8,8 +8,8 @@ import osr
 import pdb
 import scipy.sparse as sp
 
-from .inference_prior import InferencePrior
-from .inference_writer import InferenceWriter
+from multiply_inference_engine.inference_prior import InferencePrior
+from multiply_inference_engine.inference_writer import InferenceWriter
 
 from datetime import datetime, timedelta
 from kafka import LinearKalman
@@ -394,6 +394,7 @@ if __name__ == '__main__':
                                                           "grid defined by the 'state_mask'.")
     args = parser.parse_args()
     parameter_list = args.parameter_list.split(',')
+    forward_model_list = args.forward_models.split(',')
     infer(args.start_time, args.end_time, parameter_list, args.prior_directory, args.datasets_dir, args.previous_state,
-          args.next_state, args.forward_models, args.output_directory, args.state_mask, args.roi,
+          args.next_state, forward_model_list, args.output_directory, args.state_mask, args.roi,
           int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
