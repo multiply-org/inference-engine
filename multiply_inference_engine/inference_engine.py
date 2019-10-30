@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import os
 import osr
+import shutil
 import scipy.sparse as sp
 
 from multiply_inference_engine.inference_prior import InferencePrior
@@ -26,7 +27,7 @@ from typing import List, Optional, Union
 __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 
 
-def _get_valid_files(datasets_dir: str) -> FileRef:
+def _get_valid_files(datasets_dir: str) -> List[FileRef]:
     file_refs = []
     file_ref_creation = FileRefCreation()
     found_files = glob.glob(datasets_dir + '/**', recursive=True)
@@ -225,6 +226,9 @@ def infer_kaska(start_time: Union[str, datetime],
     time_grid.append(end_time)
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
+    temp_dir = f'{output_directory}/temp/'
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
     mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
                                                                               roi_grid, destination_grid)
     reprojection = untiled_reprojection
@@ -271,8 +275,7 @@ def infer_kaska(start_time: Union[str, datetime],
                   time_grid=time_grid,
                   state_mask=None,
                   approx_inverter=approx_inverter,
-                  output_folder=None,
-                  chunk=None)
+                  output_folder=temp_dir)
     parameter_names, parameter_data = kaska.run_retrieval()
     outfile_names = []
     for parameter_name in parameter_names:
@@ -287,6 +290,7 @@ def infer_kaska(start_time: Union[str, datetime],
             data.append(sub_data[i, :, :])
     writer.write(data, raster_width, raster_height, offset_x, offset_y)
     writer.close()
+    shutil.rmtree(temp_dir)
 
 
 def _get_mask_data_set_and_reprojection(state_mask: Optional[str] = None, spatial_resolution: Optional[int] = None,
@@ -405,5 +409,5 @@ if __name__ == '__main__':
     if args.forward_models is not None:
         forward_model_list = args.forward_models.split(',')
     infer(args.start_time, args.end_time, parameter_list, args.prior_directory, args.datasets_dir, args.previous_state,
-          args.next_state, args.emulators_directory, forward_model_list, args.output_directory, args.state_mask, args.roi,
-          int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
+          args.next_state, args.emulators_directory, forward_model_list, args.output_directory, args.state_mask,
+          args.roi, int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
