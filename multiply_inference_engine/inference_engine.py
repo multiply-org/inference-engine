@@ -127,6 +127,7 @@ def _infer(start_time: Union[str, datetime],
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     if forward_models is None and emulators_directory is not None:
+        logging.info('Determining forward model name from emulators directory')
         aux_data_provider = get_aux_data_provider()
         model_metadata_file = f'{emulators_directory}/metadata.json'
         if aux_data_provider.assure_element_provided(model_metadata_file):
@@ -143,8 +144,10 @@ def _infer(start_time: Union[str, datetime],
     projection = mask_data_set.GetProjection()
     complete_parameter_list = []
     for forward_model_name in forward_models:
+        logging.info(f'Checking for forward model {forward_model_name}')
         forward_model = get_forward_model(forward_model_name)
         if forward_model is not None:
+            logging.info(f'Forward model {forward_model_name} found')
             model_variables = forward_model.variables
             for model_variable in model_variables:
                 if model_variable not in complete_parameter_list:
