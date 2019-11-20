@@ -19,7 +19,7 @@ from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as
 from kaska import get_inverter, KaSKA
 from multiply_core.models import get_forward_model
 from multiply_core.observations import data_validation, GeoTiffWriter, ObservationsFactory
-from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string
+from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string, get_aux_data_provider
 from shapely.geometry import Polygon
 from shapely.wkt import loads
 from typing import List, Optional, Union
@@ -127,12 +127,15 @@ def _infer(start_time: Union[str, datetime],
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     if forward_models is None and emulators_directory is not None:
+        aux_data_provider = get_aux_data_provider()
         model_metadata_file = f'{emulators_directory}/metadata.json'
-        if os.path.exists(model_metadata_file):
+        if aux_data_provider.assure_element_provided(model_metadata_file):
             with(open(model_metadata_file, 'r')) as model_file:
                 model_metadata = json.load(model_file)
                 forward_models = [model_metadata['id']]
                 logging.info(f"Determined forward model '{forward_models[0]}' from emulators directory")
+        else:
+            raise FileNotFoundError(f'Could not find {model_metadata_file}')
     mask_data_set, reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi, roi_grid,
                                                                       destination_grid)
     mask = mask_data_set.ReadAsArray().astype(np.bool)
@@ -146,6 +149,8 @@ def _infer(start_time: Union[str, datetime],
             for model_variable in model_variables:
                 if model_variable not in complete_parameter_list:
                     complete_parameter_list.append(model_variable)
+        else:
+            raise ValueError(f'Could not find {forward_model_name}')
     output = InferenceWriter(parameter_list, complete_parameter_list, output_directory, start_time, geo_transform,
                              projection, mask.shape[1], mask.shape[0], state_folder=next_state_dir)
     prior_files = glob.glob(prior_directory + '/*.vrt')
