@@ -61,7 +61,10 @@ class InferenceWriter:
             # Dump to disk P_analysis_inv as sparse matrix in npz
             if p_analysis_inv is not None:
                 file_name = os.path.join(self.state_folder, "P_analysis_inv_%s.npz" % (timestep.strftime("A%Y%j")))
-                sp.save_npz(file_name, p_analysis_inv)
+                try:
+                    sp.save_npz(file_name, p_analysis_inv)
+                except:
+                    os.remove(file_name)
             if p_analysis is not None:
                 file_name = os.path.join(self.state_folder, "P_analysis_%s.npz" % (timestep.strftime("A%Y%j")))
                 np.savez(file_name, p_analysis)
