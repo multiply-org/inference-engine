@@ -49,14 +49,14 @@ def infer(start_time: Union[str, datetime],
           datasets_dir: str,
           previous_state_dir: str,
           next_state_dir: str,
-          emulators_directory: Optional[str],
-          forward_models: Optional[List[str]],
           output_directory: str,
-          state_mask: Optional[str],
-          roi: Optional[Union[str, Polygon]],
-          spatial_resolution: Optional[int],
-          roi_grid: Optional[str],
-          destination_grid: Optional[str],
+          emulators_directory: Optional[str] = None,
+          forward_models: Optional[List[str]] = None,
+          state_mask: Optional[str] = None,
+          roi: Optional[Union[str, Polygon]] = None,
+          spatial_resolution: Optional[int] = None,
+          roi_grid: Optional[str] = None,
+          destination_grid: Optional[str] = None,
           with_profiling: bool = False):
     """
     :param start_time: The start time of the inference period
@@ -417,5 +417,5 @@ if __name__ == '__main__':
     if args.forward_models is not None:
         forward_model_list = args.forward_models.split(',')
     infer(args.start_time, args.end_time, parameter_list, args.prior_directory, args.datasets_dir, args.previous_state,
-          args.next_state, args.emulators_directory, forward_model_list, args.output_directory, args.state_mask,
+          args.next_state, args.output_directory, args.emulators_directory, forward_model_list, args.state_mask,
           args.roi, int(args.spatial_resolution), args.roi_grid, args.destination_grid, False)
