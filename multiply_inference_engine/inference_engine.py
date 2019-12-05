@@ -210,11 +210,11 @@ def infer_kaska(start_time: Union[str, datetime],
                 datasets_dir: str,
                 forward_models: List[str],
                 output_directory: str,
-                state_mask: Optional[str],
-                roi: Optional[Union[str, Polygon]],
-                spatial_resolution: Optional[int],
-                roi_grid: Optional[str],
-                destination_grid: Optional[str],
+                state_mask: Optional[str]=None,
+                roi: Optional[Union[str, Polygon]]=None,
+                spatial_resolution: Optional[int]=None,
+                roi_grid: Optional[str]=None,
+                destination_grid: Optional[str]=None,
                 tile_index_x: Optional[int] = 0,
                 tile_index_y: Optional[int] = 0,
                 tile_width: Optional[int] = None,
@@ -281,9 +281,10 @@ def infer_kaska(start_time: Union[str, datetime],
 
     kaska = KaSKA(observations=observations,
                   time_grid=time_grid,
-                  state_mask=None,
+                  state_mask=mask_data_set,
                   approx_inverter=approx_inverter,
-                  output_folder=temp_dir)
+                  output_folder=temp_dir,
+                  save_sgl_inversion=False)
     parameter_names, parameter_data = kaska.run_retrieval()
     outfile_names = []
     for parameter_name in parameter_names:
