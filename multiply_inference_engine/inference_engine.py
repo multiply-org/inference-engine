@@ -205,23 +205,23 @@ def _infer(start_time: Union[str, datetime],
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
 
 
-def infer_kaska(start_time: Union[str, datetime],
-                end_time: Union[str, datetime],
-                time_step: Union[int, timedelta],
-                datasets_dir: str,
-                forward_models: List[str],
-                output_directory: str,
-                parameters: Optional[List[str]] = None,
-                state_mask: Optional[str] = None,
-                roi: Optional[Union[str, Polygon]] = None,
-                spatial_resolution: Optional[int] = None,
-                roi_grid: Optional[str] = None,
-                destination_grid: Optional[str] = None,
-                tile_index_x: Optional[int] = 0,
-                tile_index_y: Optional[int] = 0,
-                tile_width: Optional[int] = None,
-                tile_height: Optional[int] = None
-                ):
+def infer_kaska_s2(start_time: Union[str, datetime],
+                   end_time: Union[str, datetime],
+                   time_step: Union[int, timedelta],
+                   datasets_dir: str,
+                   forward_models: List[str],
+                   output_directory: str,
+                   parameters: Optional[List[str]] = None,
+                   state_mask: Optional[str] = None,
+                   roi: Optional[Union[str, Polygon]] = None,
+                   spatial_resolution: Optional[int] = None,
+                   roi_grid: Optional[str] = None,
+                   destination_grid: Optional[str] = None,
+                   tile_index_x: Optional[int] = 0,
+                   tile_index_y: Optional[int] = 0,
+                   tile_width: Optional[int] = None,
+                   tile_height: Optional[int] = None
+                   ):
     if type(start_time) is str:
         start_time = get_time_from_string(start_time)
     if type(end_time) is str:

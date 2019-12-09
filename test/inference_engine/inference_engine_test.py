@@ -1,4 +1,4 @@
-from multiply_inference_engine import _get_mask_data_set_and_reprojection, infer_kaska
+from multiply_inference_engine import _get_mask_data_set_and_reprojection, infer_kaska_s2
 import gdal
 import numpy as np
 import os
@@ -103,9 +103,9 @@ def test_infer_kaska_without_tiling():
           '-2.013311180091705 39.0175682127747, -2.0291040267713925 39.0175682127747, ' \
           '-2.0291040267713925 39.028237232944704))'
     try:
-        infer_kaska(start_time, end_time, time_step, datasets_dir, forward_models=['s2_prosail_kaska'],
-                    output_directory=output_dir, state_mask=None, roi=roi, spatial_resolution=60, roi_grid=None,
-                    destination_grid=None, tile_index_x=None, tile_index_y=None, tile_width=None, tile_height=None)
+        infer_kaska_s2(start_time, end_time, time_step, datasets_dir, forward_models=['s2_prosail_kaska'],
+                       output_directory=output_dir, state_mask=None, roi=roi, spatial_resolution=60, roi_grid=None,
+                       destination_grid=None, tile_index_x=None, tile_index_y=None, tile_width=None, tile_height=None)
         expected_files = ['s2_cab_A2017-06-01.tif', 's2_cab_A2017-06-10.tif', 's2_cb_A2017-06-01.tif',
                           's2_cb_A2017-06-10.tif', 's2_lai_A2017-06-01.tif', 's2_lai_A2017-06-10.tif']
         for file in expected_files:
@@ -131,10 +131,10 @@ def test_infer_kaska_with_tiling():
     try:
         for x in range(3):
             for y in range(2):
-                infer_kaska(start_time, end_time, time_step, datasets_dir, forward_models=['s2_prosail_kaska'],
-                            output_directory=output_dir, state_mask=None, roi=roi, spatial_resolution=60,
-                            roi_grid=None, destination_grid=None,
-                            tile_index_x=x, tile_index_y=y, tile_width=10, tile_height=10)
+                infer_kaska_s2(start_time, end_time, time_step, datasets_dir, forward_models=['s2_prosail_kaska'],
+                               output_directory=output_dir, state_mask=None, roi=roi, spatial_resolution=60,
+                               roi_grid=None, destination_grid=None,
+                               tile_index_x=x, tile_index_y=y, tile_width=10, tile_height=10)
         expected_files = ['s2_cab_A2017-06-01.tif', 's2_cab_A2017-06-10.tif', 's2_cb_A2017-06-01.tif',
                           's2_cb_A2017-06-10.tif', 's2_lai_A2017-06-01.tif', 's2_lai_A2017-06-10.tif']
         for file in expected_files:
