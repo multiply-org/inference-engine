@@ -211,6 +211,7 @@ def infer_kaska(start_time: Union[str, datetime],
                 datasets_dir: str,
                 forward_models: List[str],
                 output_directory: str,
+                parameters: Optional[List[str]] = None,
                 state_mask: Optional[str] = None,
                 roi: Optional[Union[str, Polygon]] = None,
                 spatial_resolution: Optional[int] = None,
@@ -241,6 +242,7 @@ def infer_kaska(start_time: Union[str, datetime],
     mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
                                                                               roi_grid, destination_grid)
     reprojection = untiled_reprojection
+    tile_mask_data_set = mask_data_set
     raster_width = mask_data_set.RasterXSize
     raster_height = mask_data_set.RasterYSize
     offset_x = 0
@@ -269,6 +271,7 @@ def infer_kaska(start_time: Union[str, datetime],
         projection = mask_data_set.GetProjection()
         destination_spatial_reference_system.ImportFromWkt(projection)
         reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
+        tile_mask_data_set = reprojection.reproject(mask_data_set)
     elif tile_width is not None or tile_height is not None:
         logging.warning('To use tiling, parameters tileWidth and tileHeight must be set. Continue without tiling')
     file_refs = _get_valid_files(datasets_dir)
@@ -276,28 +279,37 @@ def infer_kaska(start_time: Union[str, datetime],
     observations_factory.sort_file_ref_list(file_refs)
     # an observations wrapper to be passed to kafka
     observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
-
+    model_parameter_names = []
+    for forward_model_name in forward_models:
+        forward_model = get_forward_model(forward_model_name)
+        for variable in forward_model.variables:
+            if variable not in model_parameter_names:
+                model_parameter_names.append(variable)
     # todo make this more elaborate when more than one inverter is available
     approx_inverter = get_inverter("prosail_5paras", "Sentinel2")
 
     kaska = KaSKA(observations=observations,
                   time_grid=time_grid,
-                  state_mask=mask_data_set,
+                  state_mask=tile_mask_data_set,
                   approx_inverter=approx_inverter,
                   output_folder=temp_dir,
                   save_sgl_inversion=False)
-    parameter_names, parameter_data = kaska.run_retrieval()
+    results = kaska.run_retrieval()
     outfile_names = []
-    for parameter_name in parameter_names:
-        for time_step in time_grid:
-            time = time_step.strftime('%Y-%m-%d')
-            outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
+    requested_indexes = []
+    for i, parameter_name in enumerate(model_parameter_names):
+        if parameters is None or parameter_name in parameters:
+            requested_indexes.append(i)
+            for time_step in time_grid:
+                time = time_step.strftime('%Y-%m-%d')
+                outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
     data = []
-    for sub_data in parameter_data:
-        for i in range(len(time_grid)):
-            data.append(sub_data[i, :, :])
+    for j, sub_data in enumerate(results[1:]):
+        if j in requested_indexes:
+            for i in range(len(time_grid)):
+                data.append(sub_data[i, :, :])
     writer.write(data, raster_width, raster_height, offset_x, offset_y)
     writer.close()
     shutil.rmtree(temp_dir)
