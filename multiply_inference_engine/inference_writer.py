@@ -64,7 +64,8 @@ class InferenceWriter:
                 try:
                     sp.save_npz(file_name, p_analysis_inv)
                 except:
-                    os.remove(file_name)
+                    if os.path.exists(file_name):
+                        os.remove(file_name)
             if p_analysis is not None:
                 file_name = os.path.join(self.state_folder, "P_analysis_%s.npz" % (timestep.strftime("A%Y%j")))
                 np.savez(file_name, p_analysis)
