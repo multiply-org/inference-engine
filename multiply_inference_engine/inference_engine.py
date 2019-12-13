@@ -266,9 +266,6 @@ def infer_kaska_s2(start_time: Union[str, datetime],
         ulx, xres, xskew, uly, yskew, yres = geo_transform
         minlrx = ulx + (mask_data_set.RasterXSize * xres)
         minlry = uly + (mask_data_set.RasterYSize * yres)
-        component_progress_logger.info(type(tile_index_x))
-        component_progress_logger.info(type(tile_width))
-        component_progress_logger.info(type(xres))
         ulx = ulx + (tile_index_x * tile_width * xres)
         uly = uly + (tile_index_y * tile_height * yres)
         lrx = ulx + (tile_width * xres)
