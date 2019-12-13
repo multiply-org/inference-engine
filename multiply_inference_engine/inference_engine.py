@@ -33,6 +33,15 @@ from typing import List, Optional, Tuple, Union
 __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 
 
+component_progress_logger = logging.getLogger('ComponentProgress')
+component_progress_logger.setLevel(logging.INFO)
+component_progress_formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+component_progress_logging_handler = logging.StreamHandler()
+component_progress_logging_handler.setLevel(logging.INFO)
+component_progress_logging_handler.setFormatter(component_progress_formatter)
+component_progress_logger.addHandler(component_progress_logging_handler)
+
+
 def _get_valid_files(datasets_dir: str) -> List[FileRef]:
     file_refs = []
     file_ref_creation = FileRefCreation()
@@ -371,15 +380,21 @@ def infer_kaska_s1(s1_stack_file_dir: str,
         logging.warning('To use tiling, parameters tileWidth and tileHeight must be set. Continue without tiling')
 
     s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, '*.nc'))[0]
+    component_progress_logger.info('14')
     sar = get_sar(s1_stack_file)
+    component_progress_logger.info('29')
     s1_data = read_sar(sar, tile_mask_data_set)
+    component_progress_logger.info('43')
     s1_doys = np.array([i.timetuple().tm_yday for i in s1_data.time])
     prior = _get_s1_priors(s1_doys, priors_dir, reprojection, raster_width, raster_height)
+    component_progress_logger.info('57')
     sar_inference_data = _get_sar_inference_data(s1_data, s1_doys, priors_dir, reprojection,
                                                  raster_width, raster_height)
+    component_progress_logger.info('71')
     lai_outputs, sr_outputs, sm_outputs, \
     Avv_outputs, Bvv_outputs, Cvv_outputs, \
     Avh_outputs, Bvh_outputs, Cvh_outputs, uorbits = do_inversion(sar_inference_data, prior, tile_mask_data_set, False)
+    component_progress_logger.info('86')
 
     times = [i.strftime('%Y-%m-%d') for i in np.array(sar_inference_data.time)[sar_inference_data.time_mask]]
 
