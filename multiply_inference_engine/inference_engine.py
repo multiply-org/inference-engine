@@ -18,7 +18,7 @@ from kafka import LinearKalman
 from kafka.inference import create_prosail_observation_operator
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
 from kaska import get_inverter, KaSKA
-from kaska.kaska_sar import get_sar, read_sar, read_s2, get_prior, inference_preprocessing, do_inversion
+from kaska.kaska_sar import get_sar, read_sar, do_inversion
 from multiply_core.models import get_forward_model
 from multiply_core.observations import data_validation, GeoTiffWriter, ObservationsFactory
 from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string, get_aux_data_provider
