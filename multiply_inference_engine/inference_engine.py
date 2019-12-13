@@ -483,7 +483,8 @@ def _get_s1_priors(s1_doys: List[int], priors_dir: str, reprojection: Reprojecti
     return prior(s1_doys, sm_s1, sm_std_s1, sr_s1, sr_std_s1)
 
 
-def _restructure_priors(prior_names: List[str], reprojection: Reprojection, width: int, height: int) -> Tuple():
+def _restructure_priors(prior_names: List[str], reprojection: Reprojection, width: int, height: int) -> \
+        Tuple[np.array, np.array, np.array]:
     priors = np.empty((len(prior_names), height, width))
     stds = np.empty((len(prior_names), height, width))
     doys = np.empty((len(prior_names), height, width))
