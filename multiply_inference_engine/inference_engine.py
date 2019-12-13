@@ -12,18 +12,23 @@ import scipy.sparse as sp
 from multiply_inference_engine.inference_prior import InferencePrior
 from multiply_inference_engine.inference_writer import InferenceWriter
 
+from collections import namedtuple
 from datetime import datetime, timedelta
 from kafka import LinearKalman
 from kafka.inference import create_prosail_observation_operator
 from kafka.inference.narrowbandSAIL_tools import propagate_LAI_narrowbandSAIL as propagator
 from kaska import get_inverter, KaSKA
-from kaska.kaska_sar import get_sar, read_sar, read_s2_lai, get_prior, inference_preprocessing, do_inversion
+from kaska.kaska_sar import get_sar, read_sar, read_s2, get_prior, inference_preprocessing, do_inversion
 from multiply_core.models import get_forward_model
 from multiply_core.observations import data_validation, GeoTiffWriter, ObservationsFactory
 from multiply_core.util import FileRef, FileRefCreation, Reprojection, get_time_from_string, get_aux_data_provider
+
+from scipy.interpolate import interp1d
+from scipy.ndimage import label
 from shapely.geometry import Polygon
 from shapely.wkt import loads
-from typing import List, Optional, Union
+from skimage.filters import sobel
+from typing import List, Optional, Tuple, Union
 
 __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 
@@ -315,13 +320,10 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     shutil.rmtree(temp_dir)
 
 
-def infer_kaska_s1(start_time: Union[str, datetime],
-                   end_time: Union[str, datetime],
-                   time_step: Union[int, timedelta],
-                   s1_data_file: str,
-                   datasets_dir: str,
-                   forward_models: List[str],
+def infer_kaska_s1(s1_stack_file_dir: str,
+                   priors_dir: str,
                    output_directory: str,
+                   parameters: Optional[List[str]] = None,
                    state_mask: Optional[str] = None,
                    roi: Optional[Union[str, Polygon]] = None,
                    spatial_resolution: Optional[int] = None,
@@ -332,26 +334,10 @@ def infer_kaska_s1(start_time: Union[str, datetime],
                    tile_width: Optional[int] = None,
                    tile_height: Optional[int] = None
                    ):
-    if type(start_time) is str:
-        start_time = get_time_from_string(start_time)
-    if type(end_time) is str:
-        end_time = get_time_from_string(end_time)
-    if type(time_step) is int:
-        time_step = timedelta(days=time_step)
-    time_grid = []
-    current_time = start_time
-    while current_time < end_time:
-        time_grid.append(current_time)
-        current_time += time_step
-    time_grid.append(end_time)
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
-    temp_dir = f'{output_directory}/temp/'
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
     mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
                                                                               roi_grid, destination_grid)
     reprojection = untiled_reprojection
+    tile_mask_data_set = mask_data_set
     raster_width = mask_data_set.RasterXSize
     raster_height = mask_data_set.RasterYSize
     offset_x = 0
@@ -380,85 +366,125 @@ def infer_kaska_s1(start_time: Union[str, datetime],
         projection = mask_data_set.GetProjection()
         destination_spatial_reference_system.ImportFromWkt(projection)
         reprojection = Reprojection(roi_bounds, xres, yres, destination_spatial_reference_system)
+        tile_mask_data_set = reprojection.reproject(mask_data_set)
     elif tile_width is not None or tile_height is not None:
         logging.warning('To use tiling, parameters tileWidth and tileHeight must be set. Continue without tiling')
-    file_refs = _get_valid_files(datasets_dir)
-    observations_factory = ObservationsFactory()
-    observations_factory.sort_file_ref_list(file_refs)
-    # an observations wrapper to be passed to kafka
-    observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
 
-    # todo make this more elaborate when more than one inverter is available
-    approx_inverter = get_inverter("prosail_5paras", "Sentinel2")
+    s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, '*.nc'))[0]
+    sar = get_sar(s1_stack_file)
+    s1_data = read_sar(sar, tile_mask_data_set)
+    s1_doys = np.array([i.timetuple().tm_yday for i in s1_data.time])
+    prior = _get_s1_priors(s1_doys, priors_dir, reprojection, raster_width, raster_height)
+    sar_inference_data = _get_sar_inference_data(s1_data, s1_doys, priors_dir, reprojection,
+                                                 raster_width, raster_height)
+    lai_outputs, sr_outputs, sm_outputs, \
+    Avv_outputs, Bvv_outputs, Cvv_outputs, \
+    Avh_outputs, Bvh_outputs, Cvh_outputs, uorbits = do_inversion(sar_inference_data, prior, tile_mask_data_set, False)
 
-    kaska = KaSKA(observations=observations,
-                  time_grid=time_grid,
-                  state_mask=mask_data_set,
-                  approx_inverter=approx_inverter,
-                  output_folder=temp_dir,
-                  save_sgl_inversion=False)
-    parameter_names, parameter_data = kaska.run_retrieval()
+    times = [i.strftime('%Y-%m-%d') for i in np.array(sar_inference_data.time)[sar_inference_data.time_mask]]
+
     outfile_names = []
-    for parameter_name in parameter_names:
-        for time_step in time_grid:
-            time = time_step.strftime('%Y-%m-%d')
-            outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
-    writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
-                           mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
+    for parameter_name in parameters:
+        for time_step in times:
+            outfile_names.append(os.path.join(output_directory, f's1_{parameter_name}_A{time_step}.tif'))
+    writer = GeoTiffWriter(outfile_names, tile_mask_data_set.GetGeoTransform(), tile_mask_data_set.GetProjection(),
+                           tile_mask_data_set.RasterXSizetile_mask_data_set.RasterYSize,
+                           num_bands=None, data_types=None)
     data = []
-    for sub_data in parameter_data:
-        for i in range(len(time_grid)):
-            data.append(sub_data[i, :, :])
+    for parameter_name in parameters:
+        if parameter_name == 'lai':
+            for i in range(len(times)):
+                data.append(lai_outputs[i, :, :])
+        elif parameter_name == 'sr':
+            for i in range(len(times)):
+                data.append(sr_outputs[i, :, :])
+        elif parameter_name == 'sm':
+            for i in range(len(times)):
+                data.append(sr_outputs[i, :, :])
     writer.write(data, raster_width, raster_height, offset_x, offset_y)
     writer.close()
-    shutil.rmtree(temp_dir)
-
-    # s1_ncfile = nc.file: str
-    # state_mask = gdal.DataSet: str
-    # s2_lai = gdal.DataSet: str
-    # s2_cab = gdal.DataSet: str
-    # s2_cbrown = gdal.DataSet: str
-    # sm_prior = nc.file: str
-    # sm_std = nc.file: str
-    # sr_prior = nc.file: str
-    # sr_std = nc.file: str
-
-    # s1_inversion = KasKASAR(s1_ncfile=s1_data_file,
-    #                         state_mask=mask_data_set,
-    #                         s2_lai=s2_lai,
-    #                         s2_cab=s2_cab,
-    #                         s2_cbrown=s2_cbrown,
-    #                         sm_prior=sm_prior,
-    #                         sm_std=sm_std,
-    #                         sr_prior=sr_prior,
-    #                         sr_std=sr_std)
-    # s1_inversion.
 
 
-    # sar = get_sar(s1_ncfile)
-    # s1_data = read_sar(sar, state_mask)
-    # s2_data = read_s2_lai(self.s2_lai, self.s2_cab, self.s2_cbrown, state_mask)
-    # prior = get_prior(s1_data, self.sm_prior, self.sm_std, self.sr_prior, self.sr_std, state_mask)
-    # sar_inference_data = inference_preprocessing(s1_data, s2_data)
-    # lai_outputs, sr_outputs, sm_outputs, \
-    # Avv_outputs, Bvv_outputs, Cvv_outputs, \
-    # Avh_outputs, Bvh_outputs, Cvh_outputs, uorbits = do_inversion(sar_inference_data, prior, state_mask, False)
+def _get_interpolated_s2_param(parameter_name: str, priors_dir: str, reprojection: Reprojection, s1_doys: List[int],
+                               width: int, height: int):
+    formats = [[f'{parameter_name}_A*.tif', 1, 5, 8, '%j'],
+               [f'Priors_{parameter_name}_*_global.vrt', 2, 0, 3, '%j'],
+               [f's2_{parameter_name}_A*.tif', 2, 1, 11, '%Y-%m-%d']]
+    for name_format in formats:
+        param_files = glob.glob(os.path.join(priors_dir, name_format[0]))
+        if len(param_files) > 0:
+            param_data = np.empty((len(param_files), height, width))
+            param_doys = np.empty((len(param_files), height, width))
+            for i, param_file in enumerate(param_files):
+                param_data_set = gdal.Open(param_file)
+                reprojected_param_data_set = reprojection.reproject(param_data_set)
+                param_data[i] = reprojected_param_data_set.GetRasterBand(1).ReadAsArray()
+                date_part = param_file.split('_')[name_format[1]][name_format[2]:name_format[3]]
+                if name_format[4] == '%j':
+                    param_doys[i] = int(date_part)
+                else:
+                    param_doys[i] = datetime.strptime(date_part, name_format[4]).timetuple().tm_yday
+            return _interpolate_prior(param_doys, s1_doys, param_data), param_doys.min(), param_doys.max(), \
+                   np.nanmax(param_data)
 
-    # outfile_names = []
-    # for parameter_name in parameter_names:
-        # for time_step in time_grid:
-        #     time = time_step.strftime('%Y-%m-%d')
-        #     outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
-    # writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
-    #                        mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
-    # data = []
-    # for sub_data in parameter_data:
-    #     for i in range(len(time_grid)):
-    #         data.append(sub_data[i, :, :])
-    # writer.write(data, raster_width, raster_height, offset_x, offset_y)
-    # writer.close()
-    # shutil.rmtree(temp_dir)
 
+def _get_sar_inference_data(s1_data, s1_doys: List[int], priors_dir: str, reprojection: Reprojection,
+                            width: int, height: int):
+    sar_inference_data = namedtuple('sar_inference_data', 'time lat lon satellite relorbit orbitdirection ang vv vh '
+                                                          'lai cab cbrown time_mask fields')
+    lai_s1, lai_min_doy, lai_max_doy, lai_nan_max= _get_interpolated_s2_param('lai', priors_dir, reprojection, s1_doys,
+                                                                              width, height)
+    cab_s1, cab_min_doy, cab_max_doy, cab_nan_max = _get_interpolated_s2_param('cab', priors_dir, reprojection, s1_doys,
+                                                                               width, height)
+    cb_s1, cb_min_doy, cb_max_doy, cb_nan_max = _get_interpolated_s2_param('cb', priors_dir, reprojection, s1_doys,
+                                                                           width, height)
+
+    min_doy = min(lai_min_doy, cab_min_doy, cb_min_doy)
+    max_doy = max(lai_max_doy, cab_max_doy, cb_max_doy)
+
+    time_mask = (s1_doys >= min_doy) & (s1_doys <= max_doy)
+
+    patches = sobel(lai_nan_max) > 0.001
+    fields = label(patches)[0]
+    return sar_inference_data(s1_data.time, s1_data.lat, s1_data.lon, s1_data.satellite, s1_data.relorbit,
+                              s1_data.orbitdirection, s1_data.ang, s1_data.vv, s1_data.vh, lai_s1, cab_s1, cb_s1,
+                              time_mask, fields)
+
+
+def _get_s1_priors(s1_doys: List[int], priors_dir: str, reprojection: Reprojection, width: int, height: int):
+    prior = namedtuple('prior', 'time sm_prior sm_std sr_prior sr_std')
+
+    soil_moisture_priors = glob.glob(os.path.join(priors_dir, 'sm_*.vrt'))
+    soil_roughness_priors = glob.glob(os.path.join(priors_dir, 'sr_*.vrt'))
+
+    sm_priors, sm_stds, sm_doys = _restructure_priors(soil_moisture_priors, reprojection, width, height)
+    sr_priors, sr_stds, sr_doys = _restructure_priors(soil_roughness_priors, reprojection, width, height)
+
+    sm_s1 = _interpolate_prior(sm_doys, s1_doys, sm_priors)
+    sm_std_s1 = _interpolate_prior(sm_doys, s1_doys, sm_stds)
+    sr_s1 = _interpolate_prior(sr_doys, s1_doys, sr_priors)
+    sr_std_s1 = _interpolate_prior(sr_doys, s1_doys, sr_stds)
+
+    return prior(s1_doys, sm_s1, sm_std_s1, sr_s1, sr_std_s1)
+
+
+def _restructure_priors(prior_names: List[str], reprojection: Reprojection, width: int, height: int) -> Tuple():
+    priors = np.empty((len(prior_names), height, width))
+    stds = np.empty((len(prior_names), height, width))
+    doys = np.empty((len(prior_names), height, width))
+    for i, prior_name in enumerate(prior_names):
+        date_part = prior_name.split('_')[3].split('.')[0]
+        doys[i] = datetime.strptime(date_part, '%Y%m%d').timetuple().tm_yday
+        dataset = gdal.Open(prior_name)
+        reprojected_dataset = reprojection.reproject(dataset)
+        priors[i] = reprojected_dataset.GetRasterBand(1).ReadAsArray()
+        stds[i] = reprojected_dataset.GetRasterBand(2).ReadAsArray()
+    return priors, stds, doys
+
+
+def _interpolate_prior(prior_doys: List[int], s1_doys: List[int], prior: np.array) -> np.array:
+    f = interp1d(prior_doys, prior, axis=0, bounds_error=False)
+    return f(s1_doys)
 
 
 def _get_mask_data_set_and_reprojection(state_mask: Optional[str] = None, spatial_resolution: Optional[int] = None,
