@@ -326,7 +326,13 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
     data = []
-    if len(observations.dates) == 0:
+    at_least_one_valid_observation = False
+    for date in observations.dates:
+        granule = observations.read_granule(date)
+        if granule[0] is not None:
+            at_least_one_valid_observation = True
+            break
+    if not at_least_one_valid_observation:
         logging.info('No valid observations found. Will skip inference.')
         for j in requested_indexes:
             for i in range(len(time_grid)):
