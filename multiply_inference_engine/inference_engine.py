@@ -302,12 +302,10 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     # an observations wrapper to be passed to kafka
     observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
     model_parameter_names = []
-    logging.getLogger('inference_engine').info('Assembling model parameter names')
     other_logger.info('Assembling model parameter names')
     for forward_model_name in forward_models:
         forward_model = get_forward_model(forward_model_name)
         for variable in forward_model.variables:
-            logging.getLogger('inference_engine').info(f'Checking variable {variable}')
             other_logger.info(f'Checking variable {variable}')
             if variable not in model_parameter_names:
                 model_parameter_names.append(variable)
@@ -324,16 +322,13 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     outfile_names = []
     requested_indexes = []
     for i, parameter_name in enumerate(model_parameter_names):
-        logging.getLogger('inference_engine').info(f'Checking for {parameter_name}')
         other_logger.info(f'Checking for {parameter_name}')
         if parameters is None or parameter_name in parameters:
-            logging.getLogger('inference_engine').info(f'Creating output files for {parameter_name}')
             other_logger.info(f'Creating output files for {parameter_name}')
             requested_indexes.append(i)
             for time_step in time_grid:
                 time = time_step.strftime('%Y-%m-%d')
                 outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
-                logging.getLogger('inference_engine').info(f'Created output file {parameter_name}')
                 other_logger.info(f'Created output file {parameter_name}')
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
