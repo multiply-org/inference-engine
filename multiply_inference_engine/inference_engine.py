@@ -354,7 +354,7 @@ def infer_kaska_s2(start_time: Union[str, datetime],
                     data.append(sub_data[i, :, :])
     writer.write(data, raster_width, raster_height, offset_x, offset_y)
     writer.close()
-    shutil.rmtree(temp_dir)
+    # shutil.rmtree(temp_dir)
 
 
 def infer_kaska_s1(s1_stack_file_dir: str,
