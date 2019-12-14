@@ -227,6 +227,59 @@ def _infer(start_time: Union[str, datetime],
     linear_kalman.run(time_grid, x_forecast, None, p_forecast_inv, iter_obs_op=True)
 
 
+def create_kaska_s2_inference_output_files(start_time: Union[str, datetime],
+                                           end_time: Union[str, datetime],
+                                           time_step: Union[int, timedelta],
+                                           forward_models: List[str],
+                                           output_directory: str,
+                                           parameters: Optional[List[str]] = None,
+                                           state_mask: Optional[str] = None,
+                                           roi: Optional[Union[str, Polygon]] = None,
+                                           spatial_resolution: Optional[int] = None,
+                                           roi_grid: Optional[str] = None,
+                                           destination_grid: Optional[str] = None,
+                                           ):
+    if type(start_time) is str:
+        start_time = get_time_from_string(start_time)
+    if type(end_time) is str:
+        end_time = get_time_from_string(end_time)
+    if type(time_step) is int:
+        time_step = timedelta(days=time_step)
+    time_grid = []
+    current_time = start_time
+    while current_time < end_time:
+        time_grid.append(current_time)
+        current_time += time_step
+    time_grid.append(end_time)
+    mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
+                                                                              roi_grid, destination_grid)
+    model_parameter_names = []
+    other_logger.info('Assembling model parameter names')
+    for forward_model_name in forward_models:
+        forward_model = get_forward_model(forward_model_name)
+        if forward_model is None:
+            other_logger.warning(f'Could not find forward model {forward_model_name}')
+            continue
+        for variable in forward_model.variables:
+            other_logger.info(f'Checking variable {variable}')
+            if variable not in model_parameter_names:
+                model_parameter_names.append(variable)
+    outfile_names = []
+    requested_indexes = []
+    for i, parameter_name in enumerate(model_parameter_names):
+        other_logger.info(f'Checking for {parameter_name}')
+        if parameters is None or parameter_name in parameters:
+            other_logger.info(f'Creating output files for {parameter_name}')
+            requested_indexes.append(i)
+            for time_step in time_grid:
+                time = time_step.strftime('%Y-%m-%d')
+                outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
+                other_logger.info(f'Created output file {parameter_name}')
+    writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
+                           mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
+    writer.close()
+
+
 def infer_kaska_s2(start_time: Union[str, datetime],
                    end_time: Union[str, datetime],
                    time_step: Union[int, timedelta],
