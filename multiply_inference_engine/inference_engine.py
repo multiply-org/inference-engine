@@ -41,6 +41,14 @@ component_progress_logging_handler.setLevel(logging.INFO)
 component_progress_logging_handler.setFormatter(component_progress_formatter)
 component_progress_logger.addHandler(component_progress_logging_handler)
 
+other_logger = logging.getLogger('InferenceEngine')
+other_logger.setLevel(logging.INFO)
+other_formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+other_logging_handler = logging.StreamHandler()
+other_logging_handler.setLevel(logging.INFO)
+other_logging_handler.setFormatter(other_formatter)
+other_logger.addHandler(other_logging_handler)
+
 
 def _get_valid_files(datasets_dir: str) -> List[FileRef]:
     file_refs = []
@@ -312,11 +320,13 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     outfile_names = []
     requested_indexes = []
     for i, parameter_name in enumerate(model_parameter_names):
+        other_logger.info(f'Creating output files for {parameter_name}')
         if parameters is None or parameter_name in parameters:
             requested_indexes.append(i)
             for time_step in time_grid:
                 time = time_step.strftime('%Y-%m-%d')
                 outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
+                other_logger.info(f'Created output file {parameter_name}')
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
     data = []
