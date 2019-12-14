@@ -411,6 +411,39 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     # shutil.rmtree(temp_dir)
 
 
+def create_kaska_s1_inference_output_files(s1_stack_file_dir: str,
+                                           priors_dir: str,
+                                           output_directory: str,
+                                           parameters: Optional[List[str]] = None,
+                                           state_mask: Optional[str] = None,
+                                           roi: Optional[Union[str, Polygon]] = None,
+                                           spatial_resolution: Optional[int] = None,
+                                           roi_grid: Optional[str] = None,
+                                           destination_grid: Optional[str] = None):
+    mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
+                                                                              roi_grid, destination_grid)
+    s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, '*.nc'))[0]
+    sar = get_sar(s1_stack_file)
+    time = [datetime(1970, 1, 1) + timedelta(days=float(i)) for i in sar.time]
+    s1_doys = np.array([i.timetuple().tm_yday for i in time])
+    lai_min_doy, lai_max_doy = _get_min_max_doy_from_s2_param('lai', priors_dir)
+    cab_min_doy, cab_max_doy = _get_min_max_doy_from_s2_param('cab', priors_dir)
+    cb_min_doy, cb_max_doy = _get_min_max_doy_from_s2_param('cb', priors_dir)
+    min_doy = min(lai_min_doy, cab_min_doy, cb_min_doy)
+    max_doy = max(lai_max_doy, cab_max_doy, cb_max_doy)
+    time_mask = (s1_doys >= min_doy) & (s1_doys <= max_doy)
+    times = [i.strftime('%Y-%m-%d') for i in np.array(time)[time_mask]]
+
+    outfile_names = []
+    for parameter_name in parameters:
+        for time_step in times:
+            outfile_names.append(os.path.join(output_directory, f's1_{parameter_name}_A{time_step}.tif'))
+    writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
+                           v.RasterXSize, mask_data_set.RasterYSize,
+                           num_bands=None, data_types=None)
+    writer.close()
+
+
 def infer_kaska_s1(s1_stack_file_dir: str,
                    priors_dir: str,
                    output_directory: str,
@@ -484,8 +517,8 @@ def infer_kaska_s1(s1_stack_file_dir: str,
     for parameter_name in parameters:
         for time_step in times:
             outfile_names.append(os.path.join(output_directory, f's1_{parameter_name}_A{time_step}.tif'))
-    writer = GeoTiffWriter(outfile_names, tile_mask_data_set.GetGeoTransform(), tile_mask_data_set.GetProjection(),
-                           tile_mask_data_set.RasterXSizetile_mask_data_set.RasterYSize,
+    writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
+                           mask_data_set.RasterXSize, mask_data_set.RasterYSize,
                            num_bands=None, data_types=None)
     data = []
     for parameter_name in parameters:
@@ -502,6 +535,23 @@ def infer_kaska_s1(s1_stack_file_dir: str,
     writer.close()
 
 
+def _get_min_max_doy_from_s2_param(parameter_name: str, priors_dir: str):
+    formats = [[f'{parameter_name}_A*.tif', 1, 5, 8, '%j'],
+               [f'Priors_{parameter_name}_*_global.vrt', 2, 0, 3, '%j'],
+               [f's2_{parameter_name}_A*.tif', 2, 1, 11, '%Y-%m-%d']]
+    for name_format in formats:
+        param_files = glob.glob(os.path.join(priors_dir, name_format[0]))
+        if len(param_files) > 0:
+            param_doys = np.empty((len(param_files)))
+            for i, param_file in enumerate(param_files):
+                date_part = param_file.split('_')[name_format[1]][name_format[2]:name_format[3]]
+                if name_format[4] == '%j':
+                    param_doys[i] = int(date_part)
+                else:
+                    param_doys[i] = datetime.strptime(date_part, name_format[4]).timetuple().tm_yday
+            return param_doys.min(), param_doys.max()
+
+
 def _get_interpolated_s2_param(parameter_name: str, priors_dir: str, reprojection: Reprojection, s1_doys: List[int],
                                width: int, height: int):
     formats = [[f'{parameter_name}_A*.tif', 1, 5, 8, '%j'],
@@ -511,7 +561,7 @@ def _get_interpolated_s2_param(parameter_name: str, priors_dir: str, reprojectio
         param_files = glob.glob(os.path.join(priors_dir, name_format[0]))
         if len(param_files) > 0:
             param_data = np.empty((len(param_files), height, width))
-            param_doys = np.empty((len(param_files), height, width))
+            param_doys = np.empty((len(param_files)))
             for i, param_file in enumerate(param_files):
                 param_data_set = gdal.Open(param_file)
                 reprojected_param_data_set = reprojection.reproject(param_data_set)
