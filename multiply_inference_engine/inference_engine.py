@@ -405,8 +405,9 @@ def infer_kaska_s2(start_time: Union[str, datetime],
             if j in requested_indexes:
                 for i in range(len(time_grid)):
                     data.append(sub_data[i, :, :])
+    other_logger.info(f'Writing to {offset_x}, {offset_y} with width {raster_width} and height {raster_height}')
     writer.write(data, raster_width, raster_height, offset_x, offset_y)
-    writer.close()
+    # writer.close()
     # shutil.rmtree(temp_dir)
 
 
