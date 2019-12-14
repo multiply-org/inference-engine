@@ -282,10 +282,10 @@ def infer_kaska_s2(start_time: Union[str, datetime],
         raster_height = tile_height
         if (lrx > ulx and lrx > minlrx) or (lrx < ulx and lrx < minlrx):
             lrx = minlrx
-            raster_width = np.abs(ulx - lrx) / xres
+            raster_width = np.abs((ulx - lrx) / xres)
         if (lry > uly and lry > minlry) or (lry < uly and lry < minlry):
             lry = minlry
-            raster_height = np.abs(uly - lry) / yres
+            raster_height = np.abs((uly - lry) / yres)
         offset_x = tile_index_x * tile_width
         offset_y = tile_index_y * tile_height
         roi_bounds = (min(ulx, lrx), min(uly, lry), max(ulx, lrx), max(uly, lry))
@@ -305,6 +305,9 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     other_logger.info('Assembling model parameter names')
     for forward_model_name in forward_models:
         forward_model = get_forward_model(forward_model_name)
+        if forward_model is None:
+            other_logger.warning(f'Could not find forward model {forward_model_name}')
+            continue
         for variable in forward_model.variables:
             other_logger.info(f'Checking variable {variable}')
             if variable not in model_parameter_names:
@@ -377,10 +380,10 @@ def infer_kaska_s1(s1_stack_file_dir: str,
         raster_height = tile_height
         if (lrx > ulx and lrx > minlrx) or (lrx < ulx and lrx < minlrx):
             lrx = minlrx
-            raster_width = np.abs(ulx - lrx) / xres
+            raster_width = np.abs((ulx - lrx) / xres)
         if (lry > uly and lry > minlry) or (lry < uly and lry < minlry):
             lry = minlry
-            raster_height = np.abs(uly - lry) / yres
+            raster_height = np.abs((uly - lry) / yres)
         offset_x = tile_index_x * tile_width
         offset_y = tile_index_y * tile_height
         roi_bounds = (min(ulx, lrx), min(uly, lry), max(ulx, lrx), max(uly, lry))
