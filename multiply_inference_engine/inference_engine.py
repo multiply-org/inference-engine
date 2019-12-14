@@ -302,9 +302,13 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     # an observations wrapper to be passed to kafka
     observations = observations_factory.create_observations(file_refs, reprojection, forward_models)
     model_parameter_names = []
+    logging.getLogger('inference_engine').info('Assembling model parameter names')
+    component_progress_logger.info('Assembling model parameter names')
     for forward_model_name in forward_models:
         forward_model = get_forward_model(forward_model_name)
         for variable in forward_model.variables:
+            logging.getLogger('inference_engine').info(f'Checking variable {variable}')
+            component_progress_logger.info(f'Checking variable {variable}')
             if variable not in model_parameter_names:
                 model_parameter_names.append(variable)
     # todo make this more elaborate when more than one inverter is available
