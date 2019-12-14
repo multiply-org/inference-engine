@@ -312,16 +312,6 @@ def infer_kaska_s2(start_time: Union[str, datetime],
             other_logger.info(f'Checking variable {variable}')
             if variable not in model_parameter_names:
                 model_parameter_names.append(variable)
-    # todo make this more elaborate when more than one inverter is available
-    approx_inverter = get_inverter("prosail_5paras", "Sentinel2")
-
-    kaska = KaSKA(observations=observations,
-                  time_grid=time_grid,
-                  state_mask=tile_mask_data_set,
-                  approx_inverter=approx_inverter,
-                  output_folder=temp_dir,
-                  save_sgl_inversion=False)
-    results = kaska.run_retrieval()
     outfile_names = []
     requested_indexes = []
     for i, parameter_name in enumerate(model_parameter_names):
@@ -336,10 +326,27 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
     data = []
-    for j, sub_data in enumerate(results[1:]):
-        if j in requested_indexes:
-            for i in range(len(time_grid)):
-                data.append(sub_data[i, :, :])
+    # for j, sub_data in enumerate(results[1:]):
+    for j in requested_indexes:
+        for i in range(len(time_grid)):
+            data.append(np.zeros((raster_height, raster_width)))
+    if len(observations.dates == 0):
+        logging.info('No valid observations found. Will skip inference.')
+    else:
+        # todo make this more elaborate when more than one inverter is available
+        approx_inverter = get_inverter("prosail_5paras", "Sentinel2")
+
+        kaska = KaSKA(observations=observations,
+                      time_grid=time_grid,
+                      state_mask=tile_mask_data_set,
+                      approx_inverter=approx_inverter,
+                      output_folder=temp_dir,
+                    save_sgl_inversion=False)
+        results = kaska.run_retrieval()
+        for j, sub_data in enumerate(results[1:]):
+            if j in requested_indexes:
+                for i in range(len(time_grid)):
+                    data.append(sub_data[i, :, :])
     writer.write(data, raster_width, raster_height, offset_x, offset_y)
     writer.close()
     shutil.rmtree(temp_dir)
