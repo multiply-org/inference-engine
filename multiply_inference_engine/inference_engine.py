@@ -326,12 +326,11 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
     data = []
-    # for j, sub_data in enumerate(results[1:]):
-    for j in requested_indexes:
-        for i in range(len(time_grid)):
-            data.append(np.zeros((raster_height, raster_width)))
-    if len(observations.dates == 0):
+    if len(observations.dates) == 0:
         logging.info('No valid observations found. Will skip inference.')
+        for j in requested_indexes:
+            for i in range(len(time_grid)):
+                data.append(np.zeros((int(raster_height), int(raster_width))))
     else:
         # todo make this more elaborate when more than one inverter is available
         approx_inverter = get_inverter("prosail_5paras", "Sentinel2")
