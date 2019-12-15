@@ -6,7 +6,6 @@ import logging
 import numpy as np
 import os
 import osr
-import shutil
 import scipy.sparse as sp
 
 from multiply_inference_engine.inference_prior import InferencePrior
@@ -479,10 +478,10 @@ def infer_kaska_s1(s1_stack_file_dir: str,
         raster_height = tile_height
         if (lrx > ulx and lrx > minlrx) or (lrx < ulx and lrx < minlrx):
             lrx = minlrx
-            raster_width = np.abs((ulx - lrx) / xres)
+            raster_width = int(np.abs((ulx - lrx) / xres))
         if (lry > uly and lry > minlry) or (lry < uly and lry < minlry):
             lry = minlry
-            raster_height = np.abs((uly - lry) / yres)
+            raster_height = int(np.abs((uly - lry) / yres))
         offset_x = tile_index_x * tile_width
         offset_y = tile_index_y * tile_height
         roi_bounds = (min(ulx, lrx), min(uly, lry), max(ulx, lrx), max(uly, lry))
@@ -495,21 +494,15 @@ def infer_kaska_s1(s1_stack_file_dir: str,
         logging.warning('To use tiling, parameters tileWidth and tileHeight must be set. Continue without tiling')
 
     s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, 's1_nc_stack*.nc'))[0]
-    component_progress_logger.info('14')
     sar = get_sar(s1_stack_file)
-    component_progress_logger.info('29')
     s1_data = read_sar(sar, tile_mask_data_set)
-    component_progress_logger.info('43')
     s1_doys = np.array([i.timetuple().tm_yday for i in s1_data.time])
     prior = _get_s1_priors(s1_doys, priors_dir, reprojection, raster_width, raster_height)
-    component_progress_logger.info('57')
     sar_inference_data = _get_sar_inference_data(s1_data, s1_doys, priors_dir, reprojection,
                                                  raster_width, raster_height)
-    component_progress_logger.info('71')
     lai_outputs, sr_outputs, sm_outputs, \
     Avv_outputs, Bvv_outputs, Cvv_outputs, \
     Avh_outputs, Bvh_outputs, Cvh_outputs, uorbits = do_inversion(sar_inference_data, prior, tile_mask_data_set, False)
-    component_progress_logger.info('86')
 
     times = [i.strftime('%Y-%m-%d') for i in np.array(sar_inference_data.time)[sar_inference_data.time_mask]]
 
@@ -566,20 +559,20 @@ def _get_interpolated_s2_param(parameter_name: str, priors_dir: str, reprojectio
                 param_data_set = gdal.Open(param_file)
                 reprojected_param_data_set = reprojection.reproject(param_data_set)
                 param_data[i] = reprojected_param_data_set.GetRasterBand(1).ReadAsArray()
-                date_part = param_file.split('_')[name_format[1]][name_format[2]:name_format[3]]
+                date_part = param_file.split('/')[-1].split('_')[name_format[1]][name_format[2]:name_format[3]]
                 if name_format[4] == '%j':
                     param_doys[i] = int(date_part)
                 else:
                     param_doys[i] = datetime.strptime(date_part, name_format[4]).timetuple().tm_yday
             return _interpolate_prior(param_doys, s1_doys, param_data), param_doys.min(), param_doys.max(), \
-                   np.nanmax(param_data)
+                   np.nanmax(param_data, axis=0)
 
 
 def _get_sar_inference_data(s1_data, s1_doys: List[int], priors_dir: str, reprojection: Reprojection,
                             width: int, height: int):
     sar_inference_data = namedtuple('sar_inference_data', 'time lat lon satellite relorbit orbitdirection ang vv vh '
                                                           'lai cab cbrown time_mask fields')
-    lai_s1, lai_min_doy, lai_max_doy, lai_nan_max= _get_interpolated_s2_param('lai', priors_dir, reprojection, s1_doys,
+    lai_s1, lai_min_doy, lai_max_doy, lai_nan_max = _get_interpolated_s2_param('lai', priors_dir, reprojection, s1_doys,
                                                                               width, height)
     cab_s1, cab_min_doy, cab_max_doy, cab_nan_max = _get_interpolated_s2_param('cab', priors_dir, reprojection, s1_doys,
                                                                                width, height)
@@ -591,6 +584,8 @@ def _get_sar_inference_data(s1_data, s1_doys: List[int], priors_dir: str, reproj
 
     time_mask = (s1_doys >= min_doy) & (s1_doys <= max_doy)
 
+    # lai_max = np.nanmax(s2_data.lai.ReadAsArray(), axis=0)
+    # patches = sobel(lai_max)>0.001
     patches = sobel(lai_nan_max) > 0.001
     fields = label(patches)[0]
     return sar_inference_data(s1_data.time, s1_data.lat, s1_data.lon, s1_data.satellite, s1_data.relorbit,
@@ -619,9 +614,9 @@ def _restructure_priors(prior_names: List[str], reprojection: Reprojection, widt
         Tuple[np.array, np.array, np.array]:
     priors = np.empty((len(prior_names), height, width))
     stds = np.empty((len(prior_names), height, width))
-    doys = np.empty((len(prior_names), height, width))
+    doys = np.empty(len(prior_names))
     for i, prior_name in enumerate(prior_names):
-        date_part = prior_name.split('_')[3].split('.')[0]
+        date_part = prior_name.split('/')[-1].split('_')[3].split('.')[0]
         doys[i] = datetime.strptime(date_part, '%Y%m%d').timetuple().tm_yday
         dataset = gdal.Open(prior_name)
         reprojected_dataset = reprojection.reproject(dataset)
