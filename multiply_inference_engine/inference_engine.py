@@ -422,7 +422,7 @@ def create_kaska_s1_inference_output_files(s1_stack_file_dir: str,
                                            destination_grid: Optional[str] = None):
     mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
                                                                               roi_grid, destination_grid)
-    s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, '*.nc'))[0]
+    s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, 's1_nc_stack*.nc'))[0]
     sar = get_sar(s1_stack_file)
     time = [datetime(1970, 1, 1) + timedelta(days=float(i)) for i in sar.time]
     s1_doys = np.array([i.timetuple().tm_yday for i in time])
@@ -494,7 +494,7 @@ def infer_kaska_s1(s1_stack_file_dir: str,
     elif tile_width is not None or tile_height is not None:
         logging.warning('To use tiling, parameters tileWidth and tileHeight must be set. Continue without tiling')
 
-    s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, '*.nc'))[0]
+    s1_stack_file = glob.glob(os.path.join(s1_stack_file_dir, 's1_nc_stack*.nc'))[0]
     component_progress_logger.info('14')
     sar = get_sar(s1_stack_file)
     component_progress_logger.info('29')
