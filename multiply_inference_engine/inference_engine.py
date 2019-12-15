@@ -439,7 +439,7 @@ def create_kaska_s1_inference_output_files(s1_stack_file_dir: str,
         for time_step in times:
             outfile_names.append(os.path.join(output_directory, f's1_{parameter_name}_A{time_step}.tif'))
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
-                           v.RasterXSize, mask_data_set.RasterYSize,
+                           mask_data_set.RasterXSize, mask_data_set.RasterYSize,
                            num_bands=None, data_types=None)
     writer.close()
 
@@ -544,7 +544,7 @@ def _get_min_max_doy_from_s2_param(parameter_name: str, priors_dir: str):
         if len(param_files) > 0:
             param_doys = np.empty((len(param_files)))
             for i, param_file in enumerate(param_files):
-                date_part = param_file.split('_')[name_format[1]][name_format[2]:name_format[3]]
+                date_part = param_file.split('/')[-1].split('_')[name_format[1]][name_format[2]:name_format[3]]
                 if name_format[4] == '%j':
                     param_doys[i] = int(date_part)
                 else:
