@@ -310,7 +310,7 @@ def infer_kaska_s2(start_time: Union[str, datetime],
     time_grid.append(end_time)
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
-    temp_dir = f'{output_directory}/temp/'
+    temp_dir = f'{output_directory}/temp_{tile_index_x}_{tile_index_y}/'
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
     mask_data_set, untiled_reprojection = _get_mask_data_set_and_reprojection(state_mask, spatial_resolution, roi,
