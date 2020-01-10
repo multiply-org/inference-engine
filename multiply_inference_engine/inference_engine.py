@@ -271,8 +271,8 @@ def create_kaska_s2_inference_output_files(start_time: Union[str, datetime],
             other_logger.info(f'Creating output files for {parameter_name}')
             requested_indexes.append(i)
             for time_step in time_grid:
-                time = time_step.strftime('%Y-%m-%d')
-                outfile_names.append(f"{output_directory}/s2_{parameter_name}_A{time}.tif")
+                time = time_step.strftime('%Y%j')
+                outfile_names.append(f"{output_directory}/{parameter_name}_A{time}.tif")
                 other_logger.info(f'Created output file {parameter_name}')
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize, num_bands=None, data_types=None)
@@ -431,12 +431,12 @@ def create_kaska_s1_inference_output_files(s1_stack_file_dir: str,
     min_doy = min(lai_min_doy, cab_min_doy, cb_min_doy)
     max_doy = max(lai_max_doy, cab_max_doy, cb_max_doy)
     time_mask = (s1_doys >= min_doy) & (s1_doys <= max_doy)
-    times = [i.strftime('%Y-%m-%d') for i in np.array(time)[time_mask]]
+    times = [i.strftime('%Y%j') for i in np.array(time)[time_mask]]
 
     outfile_names = []
     for parameter_name in parameters:
         for time_step in times:
-            outfile_names.append(os.path.join(output_directory, f's1_{parameter_name}_A{time_step}.tif'))
+            outfile_names.append(os.path.join(output_directory, f'{parameter_name}_A{time_step}.tif'))
     writer = GeoTiffWriter(outfile_names, mask_data_set.GetGeoTransform(), mask_data_set.GetProjection(),
                            mask_data_set.RasterXSize, mask_data_set.RasterYSize,
                            num_bands=None, data_types=None)
