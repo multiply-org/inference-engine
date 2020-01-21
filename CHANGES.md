@@ -1,3 +1,13 @@
+## Version 0.6
+
+### Improvements and new Features
+* Introduced forward models parameter to read registered forward models
+* Introduced InferenceWriter to write results from Kafka Inference Engine
+* Support Kaska Inference Engine
+* Use Aux Data Provider from Multiply Core
+* Added Progress logging
+
+
 ## Version 0.5
 
 ### New Features
