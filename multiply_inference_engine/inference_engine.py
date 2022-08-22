@@ -1,5 +1,8 @@
 import argparse
-import gdal
+try:
+    from osgeo import gdal
+except ImportError:
+    import gdal
 import glob
 import json
 import logging
