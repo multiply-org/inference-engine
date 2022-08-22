@@ -8,7 +8,12 @@ import json
 import logging
 import numpy as np
 import os
-import osr
+
+try:
+    from osgeo import osr
+except ImportError:
+    import osr
+
 import scipy.sparse as sp
 
 from multiply_inference_engine.inference_prior import InferencePrior
