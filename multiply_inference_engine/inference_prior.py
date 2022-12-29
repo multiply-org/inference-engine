@@ -3,7 +3,10 @@ from datetime import datetime
 from multiply_core.util import reproject_image, block_diag
 from multiply_prior_engine import PriorEngine
 from typing import List, Union
-import gdal
+try:
+    from osgeo import gdal
+except ImportError:
+    import gdal
 import logging
 import numpy as np
 import os
