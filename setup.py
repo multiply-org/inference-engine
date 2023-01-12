@@ -6,7 +6,7 @@ requirements = [
       'abc',
       'datetime',
       'logging',
-      'multiply_prior_engine',
+      'multiply_prior_engine @ https://github.com/QCDIS/prior-engine.git',
       'numpy',
       'typing',
 ]
