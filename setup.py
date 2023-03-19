@@ -3,12 +3,6 @@
 from setuptools import setup
 
 requirements = [
-      'abc',
-      'datetime',
-      'logging',
-      'multiply_prior_engine',
-      'numpy',
-      'typing',
 ]
 
 __version__ = None
