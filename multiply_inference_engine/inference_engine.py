@@ -1,4 +1,5 @@
 import argparse
+
 try:
     from osgeo import gdal
 except ImportError:
@@ -39,7 +40,6 @@ from typing import List, Optional, Tuple, Union
 
 __author__ = "Tonio Fincke (Brockmann Consult GmbH)"
 
-
 component_progress_logger = logging.getLogger('ComponentProgress')
 component_progress_logger.setLevel(logging.INFO)
 component_progress_formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
@@ -63,9 +63,9 @@ def _get_valid_files(datasets_dir: str) -> List[FileRef]:
     found_files = glob.glob(datasets_dir + '/**', recursive=True)
     for found_file in found_files:
         found_file = found_file.replace('\\', '/')
-        type = data_validation.get_valid_type(found_file)
-        if not type:
-            file_ref = file_ref_creation.get_file_ref(type, found_file)
+        a_type = data_validation.get_valid_type(found_file)
+        if not a_type:
+            file_ref = file_ref_creation.get_file_ref(a_type, found_file)
             if file_ref is not None:
                 logging.getLogger('inference_engine').info('retrieve observations from {}'.format(file_ref.url))
                 file_refs.append(file_ref)
@@ -74,7 +74,7 @@ def _get_valid_files(datasets_dir: str) -> List[FileRef]:
 
 def infer(start_time: Union[str, datetime],
           end_time: Union[str, datetime],
-          parameter_list: List[str],
+          a_parameter_list: List[str],
           prior_directory: str,
           datasets_dir: str,
           previous_state_dir: str,
@@ -91,7 +91,7 @@ def infer(start_time: Union[str, datetime],
     """
     :param start_time: The start time of the inference period
     :param end_time: The end time of the inference period
-    :param parameter_list: The list of bio-physical parameters that shall be inferred.
+    :param a_parameter_list: The list of bio-physical parameters that shall be inferred.
     :param prior_directory: A directory where the global .vrt-files of the priors are located.
     :param datasets_dir: A directory where the input data is located.
     :param previous_state_dir: A directory where the state from the previous inference period has been saved to.
@@ -119,7 +119,7 @@ def infer(start_time: Union[str, datetime],
                             'previous_state_dir,next_state_dir,emulators_directory,output_directory,state_mask,roi,'
                             'spatial_resolution,roi_grid,destination_grid)', globals(), locals(), None)
         else:
-            _infer(start_time, end_time, parameter_list, prior_directory, datasets_dir,
+            _infer(start_time, end_time, a_parameter_list, prior_directory, datasets_dir,
                    previous_state_dir, next_state_dir, emulators_directory, forward_models, output_directory,
                    state_mask, roi, spatial_resolution, roi_grid, destination_grid)
     except BaseException as e:
@@ -134,7 +134,7 @@ def infer(start_time: Union[str, datetime],
 
 def _infer(start_time: Union[str, datetime],
            end_time: Union[str, datetime],
-           parameter_list: List[str],
+           a_parameter_list: List[str],
            prior_directory: str,
            datasets_dir: str,
            previous_state_dir: str,
@@ -184,7 +184,7 @@ def _infer(start_time: Union[str, datetime],
                     complete_parameter_list.append(model_variable)
         else:
             raise ValueError(f'Could not find {forward_model_name}')
-    output = InferenceWriter(parameter_list, complete_parameter_list, output_directory, start_time, geo_transform,
+    output = InferenceWriter(a_parameter_list, complete_parameter_list, output_directory, start_time, geo_transform,
                              projection, mask.shape[1], mask.shape[0], state_folder=next_state_dir)
     prior_files = glob.glob(prior_directory + '/*.vrt')
     inference_prior = InferencePrior('', global_prior_files=prior_files, reference_dataset=mask_data_set)
@@ -406,7 +406,7 @@ def infer_kaska_s2(start_time: Union[str, datetime],
                       state_mask=tile_mask_data_set,
                       approx_inverter=approx_inverter,
                       output_folder=temp_dir,
-                    save_sgl_inversion=False)
+                      save_sgl_inversion=False)
         results = kaska.run_retrieval()
         for j, sub_data in enumerate(results[1:]):
             if j in requested_indexes:
@@ -509,8 +509,9 @@ def infer_kaska_s1(s1_stack_file_dir: str,
     sar_inference_data = _get_sar_inference_data(s1_data, s1_doys, priors_dir, reprojection,
                                                  raster_width, raster_height)
     lai_outputs, sr_outputs, sm_outputs, \
-    Avv_outputs, Bvv_outputs, Cvv_outputs, \
-    Avh_outputs, Bvh_outputs, Cvh_outputs, uorbits = do_inversion(sar_inference_data, prior, tile_mask_data_set, False)
+        Avv_outputs, Bvv_outputs, Cvv_outputs, \
+        Avh_outputs, Bvh_outputs, Cvh_outputs, uorbits = do_inversion(sar_inference_data, prior, tile_mask_data_set,
+                                                                      False)
 
     times = [i.strftime('%Y-%m-%d') for i in np.array(sar_inference_data.time)[sar_inference_data.time_mask]]
 
@@ -573,7 +574,7 @@ def _get_interpolated_s2_param(parameter_name: str, priors_dir: str, reprojectio
                 else:
                     param_doys[i] = datetime.strptime(date_part, name_format[4]).timetuple().tm_yday
             return _interpolate_prior(param_doys, s1_doys, param_data), param_doys.min(), param_doys.max(), \
-                   np.nanmax(param_data, axis=0)
+                np.nanmax(param_data, axis=0)
 
 
 def _get_sar_inference_data(s1_data, s1_doys: List[int], priors_dir: str, reprojection: Reprojection,
@@ -581,7 +582,7 @@ def _get_sar_inference_data(s1_data, s1_doys: List[int], priors_dir: str, reproj
     sar_inference_data = namedtuple('sar_inference_data', 'time lat lon satellite relorbit orbitdirection ang vv vh '
                                                           'lai cab cbrown time_mask fields')
     lai_s1, lai_min_doy, lai_max_doy, lai_nan_max = _get_interpolated_s2_param('lai', priors_dir, reprojection, s1_doys,
-                                                                              width, height)
+                                                                               width, height)
     cab_s1, cab_min_doy, cab_max_doy, cab_nan_max = _get_interpolated_s2_param('cab', priors_dir, reprojection, s1_doys,
                                                                                width, height)
     cb_s1, cb_min_doy, cb_max_doy, cb_nan_max = _get_interpolated_s2_param('cb', priors_dir, reprojection, s1_doys,
