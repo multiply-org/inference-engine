@@ -31,3 +31,5 @@ dependencies:
   - pip:
       - .
       - git+https://github.com/QCDIS/multiply-core.git
+      - git+https://github.com/QCDIS/prior-engine.git
+      - git+https://github.com/QCDIS/KaFKA-InferenceEngine.git

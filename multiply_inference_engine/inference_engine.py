@@ -64,7 +64,7 @@ def _get_valid_files(datasets_dir: str) -> List[FileRef]:
     for found_file in found_files:
         found_file = found_file.replace('\\', '/')
         type = data_validation.get_valid_type(found_file)
-        if type is not '':
+        if not type:
             file_ref = file_ref_creation.get_file_ref(type, found_file)
             if file_ref is not None:
                 logging.getLogger('inference_engine').info('retrieve observations from {}'.format(file_ref.url))

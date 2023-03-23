@@ -61,9 +61,9 @@ class InferencePrior(object):
         elif global_prior_files is not None:
             LOG.info('Using global files to access prior information')
             self._inference_prior = PriorFilesInferencePrior(global_prior_files, reference_dataset)
-            if prior_engine_config_file is not None and prior_engine_config_file is not '':
+            if prior_engine_config_file and prior_engine_config_file:
                 LOG.info('Passing a config file is not necessary when prior files are present')
-        elif prior_engine_config_file is not None and prior_engine_config_file is not '':
+        elif prior_engine_config_file and prior_engine_config_file:
             self._inference_prior = PriorEngineInferencePrior(prior_engine_config_file, reference_dataset)
         else:
             raise ValueError('Either config for prior engine or list of vrt files must be given as parameter.')
