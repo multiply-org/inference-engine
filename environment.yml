@@ -25,6 +25,7 @@ dependencies:
   - flake8
   - scipy
   - shapely
+  - netcdf4
   - pytest-shutil
   - pip
   - pip:
