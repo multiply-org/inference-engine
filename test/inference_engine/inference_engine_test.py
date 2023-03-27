@@ -1,5 +1,8 @@
 from multiply_inference_engine import _get_mask_data_set_and_reprojection, infer_kaska_s2
-import gdal
+try:
+    from osgeo import gdal
+except ImportError:
+    import gdal
 import numpy as np
 import os
 import pytest
